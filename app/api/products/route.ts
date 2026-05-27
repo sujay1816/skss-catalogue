@@ -6,7 +6,7 @@ const SELECT = `
   occasion, care_instructions, blouse_included, length, weight_grams,
   original_price, sale_price, discount_percent, gst_rate,
   is_featured, is_bestseller, created_at, average_rating, review_count,
-  video_url, show_in_catalogue,
+  video_url,
   categories(name, slug),
   product_images(id, url, alt_text, is_primary, order_index),
   product_variants(id, colour, colour_hex, stock, image_url)
@@ -27,7 +27,6 @@ export async function GET(request: Request) {
     .from('products')
     .select(SELECT, { count: 'exact' })
     .eq('is_active', true)
-    .eq('show_in_catalogue', true)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
