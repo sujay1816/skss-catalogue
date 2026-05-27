@@ -73,8 +73,8 @@ function SwipeCard({
   const primaryImg = product.images.find(i => i.isPrimary) || product.images[0]
   const price      = product.salePrice ?? product.originalPrice
   const badge      = discountBadge(product.originalPrice, product.salePrice)
-  const scale      = 1 - stackIndex * 0.04
-  const translateY = stackIndex * 12
+  const scale      = 1 - stackIndex * 0.035
+  const translateY = stackIndex * 14
 
   // Reset transform when card becomes active
   useEffect(() => {
@@ -153,7 +153,7 @@ function SwipeCard({
       onPointerUp={onPointerUp}
       style={{
         position: 'absolute',
-        width: 'calc(100% - 32px)',
+        width: 'calc(100% - 24px)',
         height: '100%',
         borderRadius: 24,
         overflow: 'hidden',
@@ -1098,6 +1098,7 @@ export default function CataloguePage() {
             flex: 1,
             position: 'relative',
             minHeight: 0,
+            overflow: 'hidden',
           }}>
             {currentProducts.map((product, i) => (
               <div
@@ -1109,6 +1110,7 @@ export default function CataloguePage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  zIndex: 10 - i,
                 }}
               >
                 <SwipeCard
