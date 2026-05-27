@@ -17,15 +17,20 @@ const toWL    = (p: CatalogueProduct): WishlistItem => ({
   originalPrice: p.originalPrice, salePrice: p.salePrice,
 })
 
-type SiteConfig = { brand_name?: string; brand_subtitle?: string; logo_url?: string; whatsapp_number?: string }
+type SiteConfig = {
+  brand_name?: string; brand_subtitle?: string; brand_tagline?: string
+  logo_url?: string; whatsapp_number?: string
+  color_primary?: string; color_accent?: string
+}
 type Occasion   = { id: string; name: string; slug: string; image_url: string }
 type FlashSale  = { id: string; title: string; ends_at: string; saleMap: Record<string, number> } | null
 
-function buildWA(items: WishlistItem[], waNum: string, customerName?: string) {
-  const total = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
-  const list  = items.map((it, i) => `${i + 1}. ${it.name} — ${fmt(it.salePrice ?? it.originalPrice)}`).join('\n')
+function buildWA(items: WishlistItem[], waNum: string, customerName?: string, occasion?: string | null) {
+  const total    = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
+  const list     = items.map((it, i) => `${i + 1}. ${it.name} — ${fmt(it.salePrice ?? it.originalPrice)}`).join('\n')
   const greeting = customerName ? `Hi, I'm ${customerName}.` : 'Hi!'
-  return `https://wa.me/${waNum}?text=${encodeURIComponent(`${greeting} I browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`)}`
+  const occLine  = occasion ? `\nShopping for: ${occasion}` : ''
+  return `https://wa.me/${waNum}?text=${encodeURIComponent(`${greeting}${occLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`)}`
 }
 
 // ── Device ID — stable anonymous identifier stored in localStorage ────────────
@@ -47,10 +52,11 @@ function buildShareUrl(items: WishlistItem[]) {
 // Shown once before the customer books a call. Collects name + phone.
 // After submission, stores the session in Supabase catalogue_sessions and
 // saves name to localStorage so future sessions skip this step.
-function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
+function PhoneCaptureSheet({ wishlist, waNum, onClose, occasion }: {
   wishlist: WishlistItem[]
   waNum: string
   onClose: () => void
+  occasion?: string | null
 }) {
   const [name,     setName]     = useState('')
   const [phone,    setPhone]    = useState('')
@@ -72,7 +78,7 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
       fetch('/api/catalogue-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: n, phone: p, wishlist, device_id: getDeviceId() }),
+        body: JSON.stringify({ name: n, phone: p, wishlist, device_id: getDeviceId(), occasion: occasion ?? null }),
       }).catch(() => {}) // fire and forget — never block the user
 
       // Persist name so we skip this form next time
@@ -82,7 +88,7 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
       localStorage.setItem('skss_customer_phone', storedPhone)
 
       // Open WhatsApp
-      window.open(buildWA(wishlist, waNum, n), '_blank', 'noopener,noreferrer')
+      window.open(buildWA(wishlist, waNum, n, occasion), '_blank', 'noopener,noreferrer')
       onClose()
     } catch {
       setLoading(false)
@@ -122,17 +128,32 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
             </button>
           </div>
 
-          {/* Wishlist preview — shows what they're booking about */}
-          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 14px', marginBottom: 20 }}>
-            <p style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(201,168,76,0.7)', marginBottom: 6, fontWeight: 600 }}>Your shortlist</p>
-            {wishlist.slice(0, 3).map(it => (
-              <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(201,168,76,0.5)', flexShrink: 0 }}/>
-                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
-                <span style={{ fontSize: 12, color: 'rgba(201,168,76,0.8)', flexShrink: 0 }}>{fmt(it.salePrice ?? it.originalPrice)}</span>
-              </div>
-            ))}
-            {wishlist.length > 3 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>+{wishlist.length - 3} more sarees</p>}
+          {/* Wishlist thumbnail preview */}
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px', marginBottom: 20 }}>
+            <p style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(201,168,76,0.7)', marginBottom: 10, fontWeight: 600 }}>
+              Your shortlist · {wishlist.length} saree{wishlist.length !== 1 ? 's' : ''}
+            </p>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 }}>
+              {wishlist.slice(0, 5).map(it => (
+                <div key={it.id} style={{ flexShrink: 0, width: 58, textAlign: 'center' }}>
+                  <div style={{ width: 58, height: 78, borderRadius: 8, overflow: 'hidden', background: '#1a1008', position: 'relative', marginBottom: 5, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {it.image
+                      ? <img src={it.image} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
+                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🥻</div>
+                    }
+                  </div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: '#C9A84C' }}>{fmt(it.salePrice ?? it.originalPrice)}</p>
+                </div>
+              ))}
+              {wishlist.length > 5 && (
+                <div style={{ flexShrink: 0, width: 58, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                  <div style={{ width: 58, height: 78, borderRadius: 8, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <p style={{ fontSize: 14, color: '#C9A84C', fontWeight: 700 }}>+{wishlist.length - 5}</p>
+                  </div>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>more</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Name field */}
@@ -249,8 +270,8 @@ function Countdown({ endsAt }: { endsAt: string }) {
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 function Logo({ config }: { config: SiteConfig }) {
-  const name     = config.brand_name     || 'SKSS'
-  const subtitle = config.brand_subtitle || 'Silk Sarees'
+  const name     = config.brand_name     || ''
+  const subtitle = config.brand_subtitle || ''
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
       {config.logo_url ? (
@@ -541,6 +562,7 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
   const rows   = ([
     ['Fabric', product.fabric], ['Weave', product.weaveType],
     ['Origin', product.originRegion], ['Length', product.length ? `${product.length}m` : ''],
+    ['Weight', product.weightGrams ? `${product.weightGrams}g` : ''],
     ['Blouse', product.blouseIncluded ? 'Included' : ''], ['Care', product.careInstructions],
   ] as [string,string][]).filter(([,v]) => v)
   const lowStock = product.variants.filter(v => v.stock > 0 && v.stock <= 3)
@@ -645,10 +667,20 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
-              <span style={{ fontSize: 30, fontWeight: 700, color: flashPrice ? '#f87171' : '#C9A84C' }}>{fmt(displayPrice)}</span>
-              {(flashPrice || product.salePrice) && <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}>{fmt(product.originalPrice)}</span>}
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>+GST</span>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
+                <span style={{ fontSize: 30, fontWeight: 700, color: flashPrice ? '#f87171' : '#C9A84C' }}>{fmt(displayPrice)}</span>
+                {(flashPrice || product.salePrice) && <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}>{fmt(product.originalPrice)}</span>}
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>excl. GST</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)', lineHeight: 1.4 }}>
+                {fmt(Math.round(displayPrice * (1 + (product.gstRate || 5) / 100)))} incl. {product.gstRate || 5}% GST
+                {(flashPrice || product.salePrice) && (
+                  <span style={{ color: 'rgba(255,255,255,0.15)', textDecoration: 'line-through', marginLeft: 6 }}>
+                    {fmt(Math.round(product.originalPrice * (1 + (product.gstRate || 5) / 100)))}
+                  </span>
+                )}
+              </p>
             </div>
 
             {lowStock.length > 0 && (
@@ -894,12 +926,21 @@ export default function CataloguePage() {
   const [dragProg,     setDragProg]     = useState(0)
   const [showCapture,  setShowCapture]  = useState(false)
   const [savedToast,   setSavedToast]   = useState('')  // product name shown briefly after right swipe
+  const [sharedToast,  setSharedToast]  = useState('')  // shown when shared link loads
+  const [totalProducts,setTotalProducts] = useState(0)   // server total for infinite scroll
+  const [loadingMore,  setLoadingMore]  = useState(false)
   const [catFilter,    setCatFilter]    = useState('All')
   const [budgetIdx,    setBudgetIdx]    = useState(0)
   const [occasionFilter, setOccasionFilter] = useState<string | null>(null)
 
-  // WhatsApp number: env var first (reliable), config as override if present
+  // WhatsApp number: env var first, config as fallback
   const waNum = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || config.whatsapp_number || ''
+
+  // Dynamic CSS vars — override defaults when admin has set brand colours
+  const brandCss = [
+    config.color_primary ? `--crimson:${config.color_primary};--crimson-dark:${config.color_primary}` : '',
+    config.color_accent  ? `--gold:${config.color_accent};--gold-light:${config.color_accent}` : '',
+  ].filter(Boolean).join(';')
 
   // Derived data
   const categories   = ['All', ...Array.from(new Set(allProducts.map(p => p.categoryName).filter(Boolean)))]
@@ -936,6 +977,7 @@ export default function CataloguePage() {
       fetch('/api/flash-sales').then(r => r.json()).catch(() => null),
     ]).then(([pd, cfg, occ, flash]) => {
       setAllProducts(pd.products || [])
+      setTotalProducts(pd.total || 0)
       setConfig(cfg || {})
       setOccasions(occ || [])
       setFlashSale(flash || null)
@@ -946,6 +988,7 @@ export default function CataloguePage() {
   // Restore saved wishlist + shared list from URL, and pre-fill customer info
   useEffect(() => {
     try { const s = localStorage.getItem('skss_wl'); if (s) setWishlist(JSON.parse(s)) } catch {}
+    try { const occ = localStorage.getItem('skss_occasion'); if (occ) setOccasionFilter(occ) } catch {}
     // Check for shared list in URL
     const params = new URLSearchParams(window.location.search)
     const saved  = params.get('saved')
@@ -965,6 +1008,7 @@ export default function CataloguePage() {
       })
       delete (window as any)._pendingSaved
       try { window.history.replaceState({}, '', '/catalogue') } catch {}
+      if (matching.length > 0) { setSharedToast(`${matching.length} saree${matching.length !== 1 ? 's' : ''} shared with you`); setTimeout(() => setSharedToast(''), 3500) }
     }
   }, [allProducts])
   useEffect(() => { try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {} }, [wishlist])
@@ -1013,7 +1057,7 @@ export default function CataloguePage() {
     const savedName = localStorage.getItem('skss_customer_name')
     if (savedName) {
       // Already captured — open WhatsApp directly with their name
-      window.open(buildWA(wishlist, waNum, savedName), '_blank', 'noopener,noreferrer')
+      window.open(buildWA(wishlist, waNum, savedName, occasionFilter), '_blank', 'noopener,noreferrer')
     } else {
       // First time — show phone capture sheet
       setShowCapture(true)
@@ -1029,6 +1073,23 @@ export default function CataloguePage() {
       setTimeout(() => swipe(dir), 320)
     } else swipe(dir)
   }, [dims.w, swipe])
+
+  // Load more products when deck runs out and there are more on the server
+  const loadMore = useCallback(async () => {
+    if (loadingMore || allProducts.length >= totalProducts) return
+    setLoadingMore(true)
+    try {
+      const res = await fetch(`/api/products?limit=40&offset=${allProducts.length}`)
+      const pd  = await res.json()
+      if (pd.products?.length > 0) {
+        setAllProducts(prev => {
+          const ids = new Set(prev.map(p => p.id))
+          return [...prev, ...pd.products.filter((p: any) => !ids.has(p.id))]
+        })
+      }
+    } catch {}
+    setLoadingMore(false)
+  }, [loadingMore, allProducts.length, totalProducts])
 
   // Keyboard navigation — useful for desktop demos
   useEffect(() => {
@@ -1047,7 +1108,8 @@ export default function CataloguePage() {
   }, [btnSwipe, detail, showWL, showCapture, showOnboard, products, idx, undoSkip])
 
   const stack  = products.slice(idx, idx + 3)
-  const isDone = !loading && idx >= products.length
+  const isDone        = !loading && idx >= products.length
+  const canLoadMore   = isDone && allProducts.length < totalProducts && products.length === allProducts.length
 
   // Handle occasion onboarding selection
   const handleOccasionSelect = (slug: string | null) => {
@@ -1070,7 +1132,11 @@ export default function CataloguePage() {
         }
       }
     }
-    try { localStorage.setItem('skss_onboarded', '1') } catch {}
+    try {
+      localStorage.setItem('skss_onboarded', '1')
+      if (slug) localStorage.setItem('skss_occasion', slug)
+      else localStorage.removeItem('skss_occasion')
+    } catch {}
     setShowOnboard(false)
   }
 
@@ -1108,12 +1174,21 @@ export default function CataloguePage() {
 
   return (
     <>
+      {brandCss && <style>{`:root{${brandCss}}`}</style>}
       <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 480, height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0d0805', overflow: 'hidden' }}>
 
           {/* Top bar */}
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '48px 20px 12px' }}>
-            <Logo config={config}/>
+            <button
+              onPointerDown={() => { (window as any)._lp = Date.now() }}
+              onPointerUp={() => { if (Date.now() - ((window as any)._lp || 0) > 600) { try { localStorage.removeItem('skss_onboarded'); localStorage.removeItem('skss_occasion') } catch {}; setOccasionFilter(null); setShowOnboard(true) } }}
+              onClick={() => {}}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'default' }}
+              title="Hold to change occasion"
+            >
+              <Logo config={config}/>
+            </button>
             <button onClick={() => setShowWL(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 24, padding: '8px 16px 8px 12px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill={wishlist.length > 0 ? '#F87171' : 'none'} stroke={wishlist.length > 0 ? '#F87171' : 'rgba(255,255,255,0.7)'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               Saved
@@ -1172,6 +1247,13 @@ export default function CataloguePage() {
                 {products.length === 0 && <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ padding: '12px 0', width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 13, color: '#fff', fontSize: 14, cursor: 'pointer' }}>Clear filters</button>}
                 {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,#8B1A2B,#6B1220)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book call</button>}
                 {products.length > 0 && <button onClick={() => setIdx(0)} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
+                {canLoadMore && (
+                  <button onClick={async () => { await loadMore(); setIdx(0) }}
+                    disabled={loadingMore}
+                    style={{ padding: '13px 0', width: '100%', background: loadingMore ? 'rgba(201,168,76,0.1)' : 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 14, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: loadingMore ? 'default' : 'pointer' }}>
+                    {loadingMore ? 'Loading more sarees…' : `Load more · ${totalProducts - allProducts.length} remaining`}
+                  </button>
+                )}
               </div>
             ) : (
               [...stack].reverse().map((p, ri) => {
@@ -1220,6 +1302,16 @@ export default function CataloguePage() {
             </div>
           )}
 
+          {/* Shared list toast */}
+          {sharedToast && (
+            <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.3s ease' }}>
+              <div style={{ background: 'rgba(201,168,76,0.95)', backdropFilter: 'blur(12px)', borderRadius: 24, padding: '9px 18px', display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(10,6,2,0.7)" strokeWidth="2.5"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(10,6,2,0.8)' }}>{sharedToast}</span>
+              </div>
+            </div>
+          )}
+
           {/* Saved toast — brief confirmation on right swipe */}
           {savedToast && (
             <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
@@ -1246,7 +1338,7 @@ export default function CataloguePage() {
         @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
       `}</style>
 
-      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)}/> }
+      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)} occasion={occasionFilter}/> }
       {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={(p) => setDetail(p)}/>}
       {showWL  && <WishlistScreen items={wishlist} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum}/>}
     </>

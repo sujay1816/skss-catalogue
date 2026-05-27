@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Fetches brand config from the same site_config table the admin uses.
-// Only exposes safe public fields — no keys, no secrets.
+// All public-safe brand + colour keys from the admin site_config table
 const PUBLIC_KEYS = [
-  'brand_name', 'brand_short_name', 'brand_subtitle',
-  'brand_tagline', 'logo_url', 'whatsapp_number',
+  'brand_name', 'brand_short_name', 'brand_subtitle', 'brand_tagline',
+  'logo_url', 'whatsapp_number',
+  'color_primary', 'color_accent', 'color_background', 'color_page_bg',
 ]
 
-export const revalidate = 300 // cache for 5 minutes
+export const revalidate = 300
 
 export async function GET() {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
-
   const { data, error } = await supabase
     .from('site_config')
     .select('key, value')
@@ -24,7 +23,7 @@ export async function GET() {
   if (error) return NextResponse.json({}, { status: 500 })
 
   const config: Record<string, string> = {}
-  data?.forEach((r: any) => { config[r.key] = r.value })
+  data?.forEach((r: any) => { if (r.value?.trim()) config[r.key] = r.value.trim() })
 
   return NextResponse.json(config)
 }
