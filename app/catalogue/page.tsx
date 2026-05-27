@@ -346,7 +346,7 @@ function OccasionScreen({ occasions, onSelect }: {
         fontFamily: 'var(--font-body)', fontSize: 13,
         color: 'var(--text-secondary, #5A4A3A)', marginBottom: 32,
         textAlign: 'center', lineHeight: 1.6,
-      }}>We'll show you the most relevant sarees first</p>
+      }}>We&apos;ll show you the most relevant sarees first</p>
 
       {/* Occasion grid — matches storefront 3/4 aspect ratio cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%', maxWidth: 360 }}>
@@ -629,7 +629,7 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
               {images.map((img, i) => (
                 <button key={img.id} onClick={() => setActiveImg(i)} aria-label={`Image ${i+1}`}
                   style={{ flexShrink: 0, width: 56, height: 72, borderRadius: 8, overflow: 'hidden', border: activeImg === i ? '2px solid #C9A84C' : '1.5px solid rgba(255,255,255,0.12)', cursor: 'pointer', background: '#1a1008', padding: 0, position: 'relative', opacity: activeImg === i ? 1 : 0.65, transition: 'opacity 0.2s, border-color 0.2s' }}>
-                  <Image src={img.url} alt="" fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="56px"/>
+                  <Image src={img.url} alt={img.altText || `${product.name} – view ${i + 1}`} fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="56px"/>
                 </button>
               ))}
             </div>
@@ -995,24 +995,29 @@ export default function CataloguePage() {
     const saved  = params.get('saved')
     if (saved) {
       // Will be populated once products load — handled below
-      ;(window as any)._pendingSaved = saved.split(',')
+      pendingSavedRef.current = saved.split(',')
     }
   }, [])
   useEffect(() => {
-    if ((window as any)._pendingSaved && allProducts.length > 0) {
-      const ids      = (window as any)._pendingSaved as string[]
+    if (pendingSavedRef.current && allProducts.length > 0) {
+      const ids      = pendingSavedRef.current
       const matching = allProducts.filter(p => ids.includes(p.id))
       if (matching.length > 0) setWishlist(prev => {
         const existingIds = new Set(prev.map(it => it.id))
         const newItems = matching.filter(p => !existingIds.has(p.id)).map(toWL)
         return [...prev, ...newItems]
       })
-      delete (window as any)._pendingSaved
+      pendingSavedRef.current = null
       try { window.history.replaceState({}, '', '/catalogue') } catch {}
       if (matching.length > 0) { setSharedToast(`${matching.length} saree${matching.length !== 1 ? 's' : ''} shared with you`); setTimeout(() => setSharedToast(''), 3500) }
     }
   }, [allProducts])
   useEffect(() => { try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {} }, [wishlist])
+
+  // Ref to hold pending shared IDs from URL — avoids polluting window object
+  const pendingSavedRef = useRef<string[] | null>(null)
+  // Ref for logo long-press detection
+  const longPressRef = useRef<number>(0)
 
   // Sync wishlist back to Supabase for returning customers (debounced, background)
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1055,6 +1060,7 @@ export default function CataloguePage() {
   // Central booking handler — always goes through phone capture if not yet captured
   const handleBookCall = useCallback(() => {
     if (wishlist.length === 0) return // nothing to book — buttons that call this should be disabled
+    if (!waNum) return                // no WhatsApp number configured — do nothing
     const savedName = localStorage.getItem('skss_customer_name')
     if (savedName) {
       // Already captured — open WhatsApp directly with their name
@@ -1063,7 +1069,7 @@ export default function CataloguePage() {
       // First time — show phone capture sheet
       setShowCapture(true)
     }
-  }, [wishlist, waNum])
+  }, [wishlist, waNum, occasionFilter])
 
   const btnSwipe = useCallback((dir: 1 | -1) => {
     const el = document.querySelector<HTMLElement>('[data-top-card]')
@@ -1148,7 +1154,7 @@ export default function CataloguePage() {
         : <svg width="44" height="44" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.4)" strokeWidth="1"/><line x1="10" y1="10" x2="24" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/><line x1="24" y1="10" x2="10" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/></svg>
       }
       <div>
-        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>Couldn't load the catalogue</p>
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>Couldn&apos;t load the catalogue</p>
         <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Check your connection and try again.</p>
       </div>
       <button
@@ -1201,8 +1207,8 @@ export default function CataloguePage() {
           {/* Top bar */}
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '48px 20px 12px' }}>
             <button
-              onPointerDown={() => { (window as any)._lp = Date.now() }}
-              onPointerUp={() => { if (Date.now() - ((window as any)._lp || 0) > 600) { try { localStorage.removeItem('skss_onboarded'); localStorage.removeItem('skss_occasion') } catch {}; setOccasionFilter(null); setShowOnboard(true) } }}
+              onPointerDown={() => { longPressRef.current = Date.now() }}
+              onPointerUp={() => { if (Date.now() - longPressRef.current > 600) { try { localStorage.removeItem('skss_onboarded'); localStorage.removeItem('skss_occasion') } catch {}; setOccasionFilter(null); setShowOnboard(true) } }}
               onClick={() => {}}
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'default' }}
               title="Hold to change occasion"
@@ -1305,16 +1311,16 @@ export default function CataloguePage() {
           {/* Action buttons */}
           {!isDone && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '6px 0 20px' }}>
-              <button onClick={() => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }} disabled={!undoSkip} style={{ width: 46, height: 46, borderRadius: '50%', background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)', cursor: undoSkip ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+              <button aria-label="Undo skip" onClick={() => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }} disabled={!undoSkip} style={{ width: 46, height: 46, borderRadius: '50%', background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)', cursor: undoSkip ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>
               </button>
-              <button onClick={() => btnSwipe(-1)} style={{ width: 64, height: 64, borderRadius: '50%', background: '#fff', border: 'none', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(0,0,0,0.35)', flexShrink: 0 }}>
+              <button aria-label="Skip this saree" onClick={() => btnSwipe(-1)} style={{ width: 64, height: 64, borderRadius: '50%', background: '#fff', border: 'none', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(0,0,0,0.35)', flexShrink: 0 }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
-              <button onClick={() => btnSwipe(1)} style={{ width: 64, height: 64, borderRadius: '50%', background: '#fff', border: 'none', color: '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(0,0,0,0.35)', flexShrink: 0 }}>
+              <button aria-label="Save to shortlist" onClick={() => btnSwipe(1)} style={{ width: 64, height: 64, borderRadius: '50%', background: '#fff', border: 'none', color: '#4ade80', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 20px rgba(0,0,0,0.35)', flexShrink: 0 }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               </button>
-              <button onClick={() => products[idx] && setDetail(products[idx])} style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(139,26,43,0.12)', border: '1.5px solid rgba(139,26,43,0.35)', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button aria-label="View saree details" onClick={() => products[idx] && setDetail(products[idx])} style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(139,26,43,0.12)', border: '1.5px solid rgba(139,26,43,0.35)', color: '#F87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </button>
             </div>
