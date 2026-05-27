@@ -709,9 +709,29 @@ export default function CataloguePage() {
   }
 
   if (loading) return (
-    <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-      <Logo config={config}/>
-      <p style={{ fontFamily: 'var(--font-heading)', fontSize: 18, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>Loading collection…</p>
+    <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+      {/* Show logo image if already loaded, otherwise just the mark — never show hardcoded text */}
+      {config.logo_url ? (
+        <img src={config.logo_url} alt="logo" style={{ width: 64, height: 64, objectFit: 'contain', opacity: 0.9 }} />
+      ) : (
+        <svg width="52" height="52" viewBox="0 0 34 34" fill="none">
+          <circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.5)" strokeWidth="1"/>
+          <path d="M17 7C21 7 25 10 25 15C25 20 21 23 17 25C17 25 13 23 11 20C9 17 10 12 13 10C14.5 8.5 15.8 7 17 7Z" fill="rgba(139,26,43,0.7)" stroke="#C9A84C" strokeWidth="0.8"/>
+          <circle cx="17" cy="11" r="2" fill="#C9A84C"/>
+          <path d="M15 19C15 19 16 21 17 21C18 21 19 20 19 19" stroke="rgba(201,168,76,0.75)" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      )}
+      {/* Only show brand name once config has loaded — avoids the SKSS fallback flash */}
+      {config.brand_name ? (
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 20, fontWeight: 400, color: 'rgba(255,255,255,0.7)', letterSpacing: 2 }}>{config.brand_name}</p>
+      ) : (
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(201,168,76,0.5)', animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }}/>
+          ))}
+        </div>
+      )}
+      <style>{`@keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
     </div>
   )
 
