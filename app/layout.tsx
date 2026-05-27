@@ -10,8 +10,6 @@ const OG_IMAGE      = process.env.NEXT_PUBLIC_OG_IMAGE      || ''
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   themeColor: '#0D0905',
 }

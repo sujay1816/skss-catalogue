@@ -23,7 +23,7 @@ export async function GET() {
   if (error) return NextResponse.json({}, { status: 500 })
 
   const config: Record<string, string> = {}
-  data?.forEach((r: any) => { if (r.value?.trim()) config[r.key] = r.value.trim() })
+  data?.forEach((r: { key: string; value: string }) => { if (r.value?.trim()) config[r.key] = r.value.trim() })
 
   return NextResponse.json(config)
 }

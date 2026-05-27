@@ -12,12 +12,26 @@ const SELECT = `
   product_variants(id, colour, colour_hex, stock, image_url)
 `
 
+// Supabase row types — replace 'any' throughout this file
+interface ProductRow {
+  id: string; name: string; slug: string; description: string | null
+  fabric: string | null; weave_type: string | null; origin_region: string | null
+  occasion: string[] | null; care_instructions: string | null
+  blouse_included: boolean | null; length: number | null; weight_grams: number | null
+  original_price: number; sale_price: number | null; discount_percent: number | null
+  gst_rate: number | null; is_featured: boolean | null; is_bestseller: boolean | null
+  created_at: string; average_rating: number | null; review_count: number | null
+  video_url: string | null; show_in_catalogue: boolean | null
+  categories: { name: string; slug: string } | null
+  product_images: ImageRow[]
+  product_variants: VariantRow[]
+}
+interface ImageRow { id: string; url: string; alt_text: string | null; is_primary: boolean; order_index: number }
+interface VariantRow { id: string; colour: string; colour_hex: string | null; stock: number; image_url: string | null }
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const limit  = Math.min(Number(searchParams.get('limit') ?? '50'), 100)
   const offset = Number(searchParams.get('offset') ?? '0')
-  const category = searchParams.get('category') ?? ''
-
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -31,23 +45,17 @@ export async function GET(request: Request) {
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  if (category) {
-    const { data: cat } = await supabase
-      .from('categories').select('id').eq('slug', category).single()
-    if (cat) q = q.eq('category_id', cat.id)
-  }
-
   const { data, count, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const products = (data ?? []).map((r: any) => {
-    const variants = (r.product_variants || []).map((v: any) => ({
+  const products = ((data ?? []) as unknown as ProductRow[]).map((r: ProductRow) => {
+    const variants = (r.product_variants || []).map((v: VariantRow) => ({
       id: v.id, colour: v.colour, colourHex: v.colour_hex,
       stock: v.stock, imageUrl: v.image_url || null,
     }))
     const images = (r.product_images || [])
-      .sort((a: any, b: any) => a.order_index - b.order_index)
-      .map((i: any) => ({
+      .sort((a: ImageRow, b: ImageRow) => a.order_index - b.order_index)
+      .map((i: ImageRow) => ({
         id: i.id, url: i.url, altText: i.alt_text || '',
         isPrimary: i.is_primary, order: i.order_index,
       }))
