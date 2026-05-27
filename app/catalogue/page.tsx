@@ -154,7 +154,7 @@ function SwipeCard({
       style={{
         position: 'absolute',
         width: 'calc(100% - 32px)',
-        height: '100%',
+        height: 'calc(100% - 24px)',
         borderRadius: 24,
         overflow: 'hidden',
         cursor: isTop ? 'grab' : 'default',
@@ -1004,12 +1004,12 @@ export default function CataloguePage() {
         maxWidth: 480, margin: '0 auto',
       }}>
 
-        {/* Top bar */}
+        {/* Top bar — real flex child, not absolute */}
         <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
+          flexShrink: 0, zIndex: 20,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '48px 20px 16px',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.7), transparent)',
+          padding: '52px 20px 16px',
+          background: 'transparent',
         }}>
           {/* Brand */}
           <div>
@@ -1095,10 +1095,10 @@ export default function CataloguePage() {
           </div>
         ) : (
           <div style={{
-            position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
+            flex: 1,
+            position: 'relative',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            paddingTop: 100, paddingBottom: 130,
+            minHeight: 0,
           }}>
             {currentProducts.map((product, i) => (
               <div key={product.id} data-top-card={i === 0 ? '' : undefined}>
@@ -1117,10 +1117,9 @@ export default function CataloguePage() {
         {/* Progress dots */}
         {!isDone && (
           <div style={{
-            position: 'absolute',
-            bottom: 120, left: 0, right: 0,
+            flexShrink: 0,
             display: 'flex', justifyContent: 'center',
-            gap: 5, zIndex: 5,
+            gap: 5, zIndex: 5, padding: '8px 0',
           }}>
             {products.slice(Math.max(0, currentIdx - 2), currentIdx + 5).map((_, i) => {
               const absIdx = Math.max(0, currentIdx - 2) + i
@@ -1140,9 +1139,9 @@ export default function CataloguePage() {
         {/* Action buttons */}
         {!isDone && (
           <div style={{
-            position: 'absolute', bottom: 36, left: 0, right: 0,
+            flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 20, zIndex: 20,
+            gap: 20, zIndex: 20, padding: '16px 0 32px',
           }}>
             {/* Skip */}
             <button
