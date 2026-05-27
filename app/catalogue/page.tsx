@@ -997,11 +997,17 @@ export default function CataloguePage() {
 
   return (
     <>
-      {/* Main swipe view */}
+      {/* Full screen backdrop — covers entire viewport on desktop */}
+      <div style={{
+        position: 'fixed', inset: 0,
+        background: '#0D0905',
+        display: 'flex', alignItems: 'stretch', justifyContent: 'center',
+      }}>
+      {/* Main swipe view — 480px column, full height */}
       <div style={{
         height: '100dvh', width: '100%', display: 'flex', flexDirection: 'column',
         background: 'var(--dark-mid)', overflow: 'hidden', position: 'relative',
-        maxWidth: 480, margin: '0 auto',
+        maxWidth: 480,
       }}>
 
         {/* Top bar — real flex child, not absolute */}
@@ -1289,6 +1295,7 @@ export default function CataloguePage() {
           onBookCall={handleBookCall}
         />
       )}
+      </div>{/* end backdrop */}
     </>
   )
 }
