@@ -154,7 +154,7 @@ function SwipeCard({
       style={{
         position: 'absolute',
         width: 'calc(100% - 32px)',
-        height: 'calc(100% - 24px)',
+        height: '100%',
         borderRadius: 24,
         overflow: 'hidden',
         cursor: isTop ? 'grab' : 'default',
@@ -1097,11 +1097,20 @@ export default function CataloguePage() {
           <div style={{
             flex: 1,
             position: 'relative',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
             minHeight: 0,
           }}>
             {currentProducts.map((product, i) => (
-              <div key={product.id} data-top-card={i === 0 ? '' : undefined}>
+              <div
+                key={product.id}
+                data-top-card={i === 0 ? '' : undefined}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <SwipeCard
                   product={product}
                   stackIndex={i}
