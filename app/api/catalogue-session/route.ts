@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     .upsert(
       {
         name:       name.trim(),
-        phone:      digits,
+        phone:      digits.startsWith('91') ? digits : '91' + digits,
         wishlist:   wishlist ?? [],
         device_id:  device_id ?? null,
         updated_at: new Date().toISOString(),

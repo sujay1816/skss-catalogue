@@ -311,7 +311,7 @@ function OccasionScreen({ occasions, onSelect }: {
               <img src={occ.image_url} alt={occ.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
             ) : (
               <div style={{ width: '100%', height: '100%', background: `linear-gradient(145deg, rgba(139,26,43,0.3), rgba(201,168,76,0.1))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                {occ.slug === 'wedding' ? '💍' : occ.slug === 'festival' ? '🪔' : occ.slug === 'daily-wear' ? '🌸' : '🎁'}
+                {{ wedding: '💍', festival: '🪔', 'daily-wear': '🌸', 'daily wear': '🌸', gift: '🎁', reception: '👑', casual: '🌺' }[occ.slug] || '🥻'}
               </div>
             )}
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 60%)'}}/>
@@ -419,7 +419,7 @@ function TinderCard({ product, stackIndex, isTop, dragProgress, onSwipe, onTap, 
         ? <Image src={img} alt={product.name} fill
             style={{ objectFit: 'cover', objectPosition: 'top', pointerEvents: 'none' }}
             sizes="(max-width:480px) calc(100vw - 32px), 448px"
-            priority={stackIndex === 0} draggable={false}/>
+            priority={stackIndex <= 1} draggable={false}/>
         : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, background: 'linear-gradient(145deg,#2D1B1B,#1A0D0D)' }}>🥻</div>
       }
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.05) 65%, transparent 100%)', pointerEvents: 'none' }}/>
@@ -510,15 +510,16 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)' }}/>
       <div ref={sheetRef}
-        onPointerDown={sheetDown} onPointerMove={sheetMove} onPointerUp={sheetUp}
-        style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, maxHeight: '92dvh', zIndex: 301, background: '#0f0a06', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -16px 60px rgba(0,0,0,0.95)', animation: 'sheetUp 0.38s cubic-bezier(0.32,0.72,0,1)', touchAction: 'none' }}>
+        style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, maxHeight: '92dvh', zIndex: 301, background: '#0f0a06', borderRadius: '20px 20px 0 0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 -16px 60px rgba(0,0,0,0.95)', animation: 'sheetUp 0.38s cubic-bezier(0.32,0.72,0,1)' }}>
 
-        {/* Handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 6px', flexShrink: 0, cursor: 'grab' }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }}/>
+        {/* Handle — swipe down here to close */}
+        <div
+          onPointerDown={sheetDown} onPointerMove={sheetMove} onPointerUp={sheetUp}
+          style={{ display: 'flex', justifyContent: 'center', padding: '16px 0 8px', flexShrink: 0, cursor: 'grab', touchAction: 'none' }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.25)' }}/>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', touchAction: 'pan-y' }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {/* Main image — objectPosition:top to show face/drape */}
           <div style={{ position: 'relative', width: '100%', aspectRatio: '3/4', background: '#1a1008' }}>
             {images[activeImg]?.url
@@ -548,6 +549,22 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
                   <Image src={img.url} alt="" fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="56px"/>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Video — shown above text if available */}
+          {product.videoUrl && (
+            <div style={{ padding: '12px 16px 0' }}>
+              <div style={{ borderRadius: 12, overflow: 'hidden', background: '#000', aspectRatio: '16/9', position: 'relative' }}>
+                <video
+                  src={product.videoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                />
+              </div>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6, textAlign: 'center', letterSpacing: 0.5 }}>Drape video</p>
             </div>
           )}
 
@@ -642,7 +659,6 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
           </a>
         </div>
       </div>
-      <style>{`@keyframes sheetUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}`}</style>
     </>
   )
 }
@@ -858,6 +874,23 @@ export default function CataloguePage() {
   }, [allProducts])
   useEffect(() => { try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {} }, [wishlist])
 
+  // Sync wishlist back to Supabase for returning customers (debounced, background)
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (wishlist.length === 0) return
+    const name   = typeof window !== 'undefined' ? localStorage.getItem('skss_customer_name') : null
+    const phone  = typeof window !== 'undefined' ? localStorage.getItem('skss_customer_phone') : null
+    if (!name || !phone) return // only sync if already captured
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
+    syncTimerRef.current = setTimeout(() => {
+      fetch('/api/catalogue-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId() }),
+      }).catch(() => {})
+    }, 3000) // 3s debounce — don't hammer the API on every swipe
+  }, [wishlist])
+
   const loved  = useCallback((id: string) => wishlist.some(it => it.id === id), [wishlist])
   const save   = useCallback((p: CatalogueProduct) => setWishlist(prev => prev.find(it => it.id === p.id) ? prev : [...prev, toWL(p)]), [])
   const remove = useCallback((id: string) => {
@@ -900,6 +933,22 @@ export default function CataloguePage() {
       setTimeout(() => swipe(dir), 320)
     } else swipe(dir)
   }, [dims.w, swipe])
+
+  // Keyboard navigation — useful for desktop demos
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (detail || showWL || showCapture || showOnboard) return
+      if (e.key === 'ArrowRight') btnSwipe(1)
+      else if (e.key === 'ArrowLeft') btnSwipe(-1)
+      else if (e.key === 'Enter' && products[idx]) setDetail(products[idx])
+      else if (e.key === 'Escape') { setDetail(null); setShowWL(false) }
+      else if ((e.key === 'z' || e.key === 'Z') && undoSkip) {
+        clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [btnSwipe, detail, showWL, showCapture, showOnboard, products, idx, undoSkip])
 
   const stack  = products.slice(idx, idx + 3)
   const isDone = !loading && idx >= products.length
@@ -952,7 +1001,6 @@ export default function CataloguePage() {
           ))}
         </div>
       )}
-      <style>{`@keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
     </div>
   )
 
@@ -1079,7 +1127,11 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      <style>{`@keyframes floatIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}`}</style>
+      <style>{`
+        @keyframes sheetUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
+        @keyframes floatIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+        @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
+      `}</style>
 
       {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)}/> }
       {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall}/>}

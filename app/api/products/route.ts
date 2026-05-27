@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     .from('products')
     .select(SELECT, { count: 'exact' })
     .eq('is_active', true)
+    .or('show_in_catalogue.eq.true,show_in_catalogue.is.null')
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 

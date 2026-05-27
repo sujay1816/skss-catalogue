@@ -16,7 +16,7 @@ export async function GET() {
     .lte('starts_at', now)
     .gte('ends_at', now)
     .limit(1)
-    .single()
+    .maybeSingle()
 
   if (error || !data) return NextResponse.json(null)
   // Build a map: product_id -> sale_price
