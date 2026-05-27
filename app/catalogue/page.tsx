@@ -73,8 +73,8 @@ function SwipeCard({
   const primaryImg = product.images.find(i => i.isPrimary) || product.images[0]
   const price      = product.salePrice ?? product.originalPrice
   const badge      = discountBadge(product.originalPrice, product.salePrice)
-  const scale      = 1 - stackIndex * 0.035
-  const translateY = stackIndex * 14
+  const scale      = 1
+  const translateY = stackIndex * 10
 
   // Reset transform when card becomes active
   useEffect(() => {
@@ -1106,7 +1106,8 @@ export default function CataloguePage() {
             minHeight: 0,
             overflow: 'hidden',
           }}>
-            {currentProducts.map((product, i) => (
+            {/* Only render top card + 1 behind — no 3-card stack that bleeds sideways */}
+            {currentProducts.slice(0, 2).map((product, i) => (
               <div
                 key={product.id}
                 data-top-card={i === 0 ? '' : undefined}
