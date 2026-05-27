@@ -3,6 +3,7 @@ import './globals.css'
 
 const CATALOGUE_URL = process.env.NEXT_PUBLIC_CATALOGUE_URL || ''
 const BRAND = process.env.NEXT_PUBLIC_BRAND_NAME || 'SKSS'
+const OG_IMAGE = process.env.NEXT_PUBLIC_OG_IMAGE || ''
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -22,6 +23,7 @@ export const metadata: Metadata = {
     title: `${BRAND} — Swipe Saree Catalogue`,
     description: 'Discover handcrafted sarees. Swipe, shortlist, and book a video call.',
     siteName: BRAND,
+    ...(OG_IMAGE ? { images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: `${BRAND} Silk Saree Catalogue` }] } : {}),
   },
   twitter: { card: 'summary_large_image' },
 }

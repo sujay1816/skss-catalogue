@@ -273,57 +273,118 @@ function Logo({ config }: { config: SiteConfig }) {
   )
 }
 
-// ─── Occasion Onboarding ──────────────────────────────────────────────────────
+// ─── Occasion Onboarding — bright, matches storefront design language ────────
 function OccasionScreen({ occasions, onSelect }: {
   occasions: Occasion[]
   onSelect: (slug: string | null) => void
 }) {
   const fallbackOccasions = [
-    { id: '1', name: 'Wedding',     slug: 'wedding',   image_url: '' },
-    { id: '2', name: 'Festival',    slug: 'festival',  image_url: '' },
-    { id: '3', name: 'Daily Wear',  slug: 'daily-wear',image_url: '' },
-    { id: '4', name: 'Gift',        slug: 'gift',      image_url: '' },
+    { id: '1', name: 'Wedding',    slug: 'wedding',    image_url: '' },
+    { id: '2', name: 'Festival',   slug: 'festival',   image_url: '' },
+    { id: '3', name: 'Daily Wear', slug: 'daily-wear', image_url: '' },
+    { id: '4', name: 'Gift',       slug: 'gift',       image_url: '' },
   ]
   const items = occasions.length > 0 ? occasions : fallbackOccasions
+  const emojiMap: Record<string, string> = {
+    wedding: '💍', festival: '🪔', 'daily-wear': '🌸', 'daily wear': '🌸',
+    gift: '🎁', reception: '👑', casual: '🌺', party: '✨'
+  }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 24px' }}>
-      {/* Subtle top decoration */}
-      <div style={{ width: 40, height: 3, borderRadius: 2, background: 'rgba(201,168,76,0.4)', marginBottom: 32 }}/>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 500,
+      background: 'var(--ivory, #FDFAF7)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '0 24px',
+    }}>
+      {/* Gold rule — matches storefront section dividers */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+        <div style={{ height: 1, width: 32, background: 'linear-gradient(to right, transparent, var(--gold, #C9A84C))' }}/>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--gold, #C9A84C)' }}/>
+        <div style={{ height: 1, width: 32, background: 'linear-gradient(to left, transparent, var(--gold, #C9A84C))' }}/>
+      </div>
 
-      <p style={{ fontFamily: 'var(--font-heading)', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(201,168,76,0.7)', marginBottom: 12 }}>Welcome</p>
-      <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, fontWeight: 400, color: '#fff', textAlign: 'center', lineHeight: 1.2, marginBottom: 8 }}>What are you<br/>shopping for?</h1>
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', marginBottom: 32, textAlign: 'center' }}>We'll show you the most relevant sarees first</p>
+      {/* Eyebrow label */}
+      <p style={{
+        fontFamily: 'var(--font-body)', fontSize: 10, letterSpacing: 3,
+        textTransform: 'uppercase', color: 'var(--gold, #C9A84C)',
+        marginBottom: 10, fontWeight: 500,
+      }}>Curated for you</p>
 
+      {/* Main heading — Cormorant, matches storefront h2 */}
+      <h1 style={{
+        fontFamily: 'var(--font-heading)', fontSize: 'clamp(26px, 7vw, 38px)',
+        fontWeight: 300, color: 'var(--text-primary, #1A1A1A)',
+        textAlign: 'center', lineHeight: 1.15, marginBottom: 6,
+        letterSpacing: 0.5,
+      }}>
+        What are you<br/><em style={{ color: 'var(--crimson, #8B1A2B)', fontStyle: 'italic' }}>shopping for?</em>
+      </h1>
+
+      <p style={{
+        fontFamily: 'var(--font-body)', fontSize: 13,
+        color: 'var(--text-secondary, #5A4A3A)', marginBottom: 32,
+        textAlign: 'center', lineHeight: 1.6,
+      }}>We'll show you the most relevant sarees first</p>
+
+      {/* Occasion grid — matches storefront 3/4 aspect ratio cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, width: '100%', maxWidth: 360 }}>
         {items.slice(0, 4).map(occ => (
           <button
             key={occ.id}
             onClick={() => onSelect(occ.slug)}
             style={{
-              borderRadius: 16, overflow: 'hidden', position: 'relative',
-              height: 130, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.1)',
-              background: '#1a1008', padding: 0,
-              transition: 'transform 0.15s, border-color 0.15s',
+              borderRadius: 14, overflow: 'hidden', position: 'relative',
+              aspectRatio: '3/4', cursor: 'pointer', padding: 0, border: 'none',
+              background: 'var(--cream, #F5EDE3)',
+              boxShadow: '0 2px 16px rgba(139,26,43,0.08)',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease',
             }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 8px 28px rgba(139,26,43,0.15)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 16px rgba(139,26,43,0.08)' }}
           >
             {occ.image_url ? (
-              <img src={occ.image_url} alt={occ.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
+              <img
+                src={occ.image_url} alt={occ.name}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+              />
             ) : (
-              <div style={{ width: '100%', height: '100%', background: `linear-gradient(145deg, rgba(139,26,43,0.3), rgba(201,168,76,0.1))`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>
-                {{ wedding: '💍', festival: '🪔', 'daily-wear': '🌸', 'daily wear': '🌸', gift: '🎁', reception: '👑', casual: '🌺' }[occ.slug] || '🥻'}
+              <div style={{
+                width: '100%', height: '100%',
+                background: 'linear-gradient(145deg, #F5EDE3, #EDE0D0)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 42,
+              }}>
+                {emojiMap[occ.slug] || '🥻'}
               </div>
             )}
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 60%)'}}/>
-            <p style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 400, color: '#fff', letterSpacing: 0.5 }}>{occ.name}</p>
+            {/* Crimson gradient overlay — matches storefront occasion cards exactly */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(to top, rgba(139,26,43,0.72) 0%, transparent 55%)',
+              pointerEvents: 'none',
+            }}/>
+            <p style={{
+              position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center',
+              fontFamily: 'var(--font-body)', fontSize: 11, fontWeight: 600,
+              letterSpacing: 1.5, textTransform: 'uppercase', color: '#fff',
+              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            }}>{occ.name}</p>
           </button>
         ))}
       </div>
 
+      {/* Skip link */}
       <button
         onClick={() => onSelect(null)}
-        style={{ marginTop: 20, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 13, cursor: 'pointer', padding: '8px 0' }}
-      >Browse all sarees →</button>
+        style={{
+          marginTop: 24, background: 'none', border: 'none',
+          fontFamily: 'var(--font-body)', fontSize: 12,
+          color: 'var(--text-secondary, #5A4A3A)', cursor: 'pointer',
+          padding: '8px 0', letterSpacing: 0.5,
+          textDecoration: 'underline', textDecorationColor: 'var(--border, #E8DDD4)',
+          textUnderlineOffset: 3,
+        }}
+      >Browse all sarees</button>
     </div>
   )
 }
@@ -467,8 +528,8 @@ function TinderCard({ product, stackIndex, isTop, dragProgress, onSwipe, onTap, 
 }
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
-function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBookCall }: {
-  product: CatalogueProduct; isLoved: boolean; onClose: () => void; onLove: () => void; waNum: string; flashSale: FlashSale; onBookCall: () => void
+function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBookCall, allProducts, onSelectSimilar }: {
+  product: CatalogueProduct; isLoved: boolean; onClose: () => void; onLove: () => void; waNum: string; flashSale: FlashSale; onBookCall: () => void; allProducts: CatalogueProduct[]; onSelectSimilar: (p: CatalogueProduct) => void
 }) {
   const [activeImg, setActiveImg] = useState(0)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -636,6 +697,39 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBo
                 </div>
               </div>
             )}
+
+            {/* Similar sarees strip */}
+            {(() => {
+              const similar = allProducts
+                .filter(p => p.id !== product.id && (p.categoryName === product.categoryName || p.fabric === product.fabric))
+                .slice(0, 6)
+              if (similar.length === 0) return null
+              return (
+                <div style={{ marginBottom: 24 }}>
+                  <p style={{ fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 12, fontWeight: 700 }}>You may also like</p>
+                  <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4 }}>
+                    {similar.map(s => {
+                      const sImg = (s.images.find(i => i.isPrimary) || s.images[0])?.url || ''
+                      const sPrice = s.salePrice ?? s.originalPrice
+                      return (
+                        <button key={s.id} onClick={() => onSelectSimilar(s)}
+                          style={{ flexShrink: 0, width: 110, cursor: 'pointer', background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
+                          aria-label={s.name}>
+                          <div style={{ width: 110, height: 146, borderRadius: 10, overflow: 'hidden', background: '#1a1008', position: 'relative', marginBottom: 7, border: '1px solid rgba(255,255,255,0.08)' }}>
+                            {sImg
+                              ? <Image src={sImg} alt={s.name} fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="110px"/>
+                              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🥻</div>
+                            }
+                          </div>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</p>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: '#C9A84C' }}>{fmt(sPrice)}</p>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
 
             {waNum && (
               <div style={{ background: 'rgba(37,211,102,0.07)', border: '1px solid rgba(37,211,102,0.2)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -870,6 +964,7 @@ export default function CataloguePage() {
         return [...prev, ...newItems]
       })
       delete (window as any)._pendingSaved
+      try { window.history.replaceState({}, '', '/catalogue') } catch {}
     }
   }, [allProducts])
   useEffect(() => { try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {} }, [wishlist])
@@ -889,6 +984,7 @@ export default function CataloguePage() {
         body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId() }),
       }).catch(() => {})
     }, 3000) // 3s debounce — don't hammer the API on every swipe
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current) }
   }, [wishlist])
 
   const loved  = useCallback((id: string) => wishlist.some(it => it.id === id), [wishlist])
@@ -1001,6 +1097,7 @@ export default function CataloguePage() {
           ))}
         </div>
       )}
+      <style>{`@keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
     </div>
   )
 
@@ -1036,7 +1133,14 @@ export default function CataloguePage() {
             {BUDGETS.slice(1).map((b, i) => (
               <button key={b.label} onClick={() => setBudgetIdx(budgetIdx === i + 1 ? 0 : i + 1)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: budgetIdx === i + 1 ? '1.5px solid rgba(139,26,43,0.7)' : '1px solid rgba(255,255,255,0.12)', background: budgetIdx === i + 1 ? 'rgba(139,26,43,0.2)' : 'rgba(255,255,255,0.04)', color: budgetIdx === i + 1 ? '#F8A3AF' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{b.label}</button>
             ))}
-            {/* Active filter count */}
+            {/* Occasion pill — visible and removable when active */}
+            {occasionFilter && (
+              <button onClick={() => setOccasionFilter(null)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: '1.5px solid rgba(201,168,76,0.5)', background: 'rgba(201,168,76,0.12)', color: '#C9A84C', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s' }}>
+                {occasionFilter}
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+            {/* Clear all + count */}
             {(catFilter !== 'All' || budgetIdx > 0 || occasionFilter) && (
               <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 10px', fontSize: 11, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1044,6 +1148,15 @@ export default function CataloguePage() {
               </button>
             )}
           </div>
+
+          {/* Product count — shown when any filter is active */}
+          {(catFilter !== 'All' || budgetIdx > 0 || occasionFilter) && !isDone && (
+            <div style={{ flexShrink: 0, padding: '0 16px 8px' }}>
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.3 }}>
+                Showing {products.length} of {allProducts.length} sarees
+              </p>
+            </div>
+          )}
 
           {/* Card stack — no paddingTop, removed 4px that clipped images */}
           <div style={{ flexShrink: 0, height: dims.h + 28, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
@@ -1134,7 +1247,7 @@ export default function CataloguePage() {
       `}</style>
 
       {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)}/> }
-      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall}/>}
+      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={(p) => setDetail(p)}/>}
       {showWL  && <WishlistScreen items={wishlist} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum}/>}
     </>
   )

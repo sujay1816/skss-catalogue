@@ -34,7 +34,7 @@ export async function POST(request: Request) {
       { onConflict: 'device_id', ignoreDuplicates: false }
     )
     .select('id')
-    .single()
+    .maybeSingle()
 
   if (error) {
     // Table may not exist yet — return success anyway so UX isn't blocked
