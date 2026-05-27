@@ -76,8 +76,10 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
       }).catch(() => {}) // fire and forget — never block the user
 
       // Persist name so we skip this form next time
+      // Store phone with country code so WhatsApp follow-up links work
+      const storedPhone = p.startsWith('91') ? p : `91${p}`
       localStorage.setItem('skss_customer_name', n)
-      localStorage.setItem('skss_customer_phone', p)
+      localStorage.setItem('skss_customer_phone', storedPhone)
 
       // Open WhatsApp
       window.open(buildWA(wishlist, waNum, n), '_blank', 'noopener,noreferrer')
@@ -150,6 +152,8 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
                 color: '#fff', fontSize: 15, outline: 'none',
                 fontFamily: 'var(--font-body)',
               }}
+              onFocus={e => e.target.style.borderColor = 'rgba(201,168,76,0.6)'}
+              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
             />
           </div>
 
@@ -173,6 +177,8 @@ function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
                   color: '#fff', fontSize: 15, outline: 'none',
                   fontFamily: 'var(--font-body)',
                 }}
+                onFocus={e => e.target.style.borderColor = 'rgba(201,168,76,0.6)'}
+                onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
               />
             </div>
           </div>
@@ -766,7 +772,9 @@ export default function CataloguePage() {
   const [occasions,    setOccasions]    = useState<Occasion[]>([])
   const [flashSale,    setFlashSale]    = useState<FlashSale>(null)
   const [loading,      setLoading]      = useState(true)
-  const [showOnboard,  setShowOnboard]  = useState(true)  // show occasion screen first
+  const [showOnboard,  setShowOnboard]  = useState(() => {
+    try { return !localStorage.getItem('skss_onboarded') } catch { return true }
+  })
   const [idx,          setIdx]          = useState(0)
   const [wishlist,     setWishlist]     = useState<WishlistItem[]>([])
   const [detail,       setDetail]       = useState<CatalogueProduct | null>(null)
@@ -775,6 +783,7 @@ export default function CataloguePage() {
   const [undoRm,       setUndoRm]       = useState<{ it: WishlistItem; t: ReturnType<typeof setTimeout> } | null>(null)
   const [dragProg,     setDragProg]     = useState(0)
   const [showCapture,  setShowCapture]  = useState(false)
+  const [savedToast,   setSavedToast]   = useState('')  // product name shown briefly after right swipe
   const [catFilter,    setCatFilter]    = useState('All')
   const [budgetIdx,    setBudgetIdx]    = useState(0)
   const [occasionFilter, setOccasionFilter] = useState<string | null>(null)
@@ -839,7 +848,11 @@ export default function CataloguePage() {
     if ((window as any)._pendingSaved && allProducts.length > 0) {
       const ids      = (window as any)._pendingSaved as string[]
       const matching = allProducts.filter(p => ids.includes(p.id))
-      if (matching.length > 0) setWishlist(matching.map(toWL))
+      if (matching.length > 0) setWishlist(prev => {
+        const existingIds = new Set(prev.map(it => it.id))
+        const newItems = matching.filter(p => !existingIds.has(p.id)).map(toWL)
+        return [...prev, ...newItems]
+      })
       delete (window as any)._pendingSaved
     }
   }, [allProducts])
@@ -860,11 +873,14 @@ export default function CataloguePage() {
     else { if (undoSkip) clearTimeout(undoSkip.t); setUndoSkip({ p, t: setTimeout(() => setUndoSkip(null), UNDO_MS) }) }
     // Haptic feedback on mobile
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
+    // Save confirmation toast
+    if (dir === 1 && p) { setSavedToast(p.name); setTimeout(() => setSavedToast(''), 1800) }
     setDragProg(0); setIdx(i => i + 1)
   }, [products, idx, save, undoSkip])
 
   // Central booking handler — always goes through phone capture if not yet captured
   const handleBookCall = useCallback(() => {
+    if (wishlist.length === 0) return // nothing to book — buttons that call this should be disabled
     const savedName = localStorage.getItem('skss_customer_name')
     if (savedName) {
       // Already captured — open WhatsApp directly with their name
@@ -896,10 +912,20 @@ export default function CataloguePage() {
       if (matchingOcc) {
         // Try to filter by the occasion name that products use
         const occName = matchingOcc.name
-        const hasProducts = allProducts.some(p => (p.occasion || []).includes(occName))
-        if (hasProducts) setOccasionFilter(occName)
+        // Try exact match first, then case-insensitive fallback
+        const hasExact = allProducts.some(p => (p.occasion || []).includes(occName))
+        if (hasExact) {
+          setOccasionFilter(occName)
+        } else {
+          const lc = occName.toLowerCase()
+          const allTags = allProducts.flatMap(p => p.occasion || [])
+          const match = allTags.find(t => t.toLowerCase() === lc || t.toLowerCase().includes(lc))
+          if (match) setOccasionFilter(match)
+          // If still no match, just clear the filter — don't show 0 results
+        }
       }
     }
+    try { localStorage.setItem('skss_onboarded', '1') } catch {}
     setShowOnboard(false)
   }
 
@@ -954,7 +980,7 @@ export default function CataloguePage() {
           <div style={{ flexShrink: 0, display: 'flex', gap: 7, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
             {/* Category chips */}
             {categories.slice(0, 5).map(cat => (
-              <button key={cat} onClick={() => setCatFilter(cat)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: catFilter === cat && budgetIdx === 0 && !occasionFilter ? '1.5px solid #C9A84C' : '1px solid rgba(255,255,255,0.12)', background: catFilter === cat && budgetIdx === 0 && !occasionFilter ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', color: catFilter === cat && budgetIdx === 0 && !occasionFilter ? '#C9A84C' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{cat}</button>
+              <button key={cat} onClick={() => setCatFilter(cat)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: catFilter === cat ? '1.5px solid #C9A84C' : '1px solid rgba(255,255,255,0.12)', background: catFilter === cat ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', color: catFilter === cat ? '#C9A84C' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{cat}</button>
             ))}
             {/* Divider */}
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }}/>
@@ -1030,6 +1056,16 @@ export default function CataloguePage() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 Book a call · {wishlist.length} saved · {fmt(wishlist.reduce((s,it) => s+(it.salePrice??it.originalPrice),0))}
               </button>
+            </div>
+          )}
+
+          {/* Saved toast — brief confirmation on right swipe */}
+          {savedToast && (
+            <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
+              <div style={{ background: 'rgba(139,26,43,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 24, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#F87171"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Saved to shortlist</span>
+              </div>
             </div>
           )}
 
