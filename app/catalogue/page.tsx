@@ -153,7 +153,7 @@ function SwipeCard({
       onPointerUp={onPointerUp}
       style={{
         position: 'absolute',
-        width: 'calc(100% - 24px)',
+        width: '100%',
         height: '100%',
         borderRadius: 24,
         overflow: 'hidden',
@@ -1106,29 +1106,21 @@ export default function CataloguePage() {
             minHeight: 0,
             overflow: 'hidden',
           }}>
-            {/* Only render top card + 1 behind — no 3-card stack that bleeds sideways */}
-            {currentProducts.slice(0, 2).map((product, i) => (
+            {/* Single card only — no stacking */}
+            {currentProducts[0] && (
               <div
-                key={product.id}
-                data-top-card={i === 0 ? '' : undefined}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 10 - i,
-                }}
+                data-top-card=""
+                style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <SwipeCard
-                  product={product}
-                  stackIndex={i}
-                  isTop={i === 0}
+                  product={currentProducts[0]}
+                  stackIndex={0}
+                  isTop={true}
                   onSwipe={handleSwipe}
-                  onTap={() => handleTap(product)}
+                  onTap={() => handleTap(currentProducts[0])}
                 />
               </div>
-            ))}
+            )}
           </div>
         )}
 
