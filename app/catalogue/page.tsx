@@ -21,16 +21,198 @@ type SiteConfig = { brand_name?: string; brand_subtitle?: string; logo_url?: str
 type Occasion   = { id: string; name: string; slug: string; image_url: string }
 type FlashSale  = { id: string; title: string; ends_at: string; saleMap: Record<string, number> } | null
 
-function buildWA(items: WishlistItem[], waNum: string) {
+function buildWA(items: WishlistItem[], waNum: string, customerName?: string) {
   const total = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
   const list  = items.map((it, i) => `${i + 1}. ${it.name} — ${fmt(it.salePrice ?? it.originalPrice)}`).join('\n')
-  return `https://wa.me/${waNum}?text=${encodeURIComponent(`Hi! I browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`)}`
+  const greeting = customerName ? `Hi, I'm ${customerName}.` : 'Hi!'
+  return `https://wa.me/${waNum}?text=${encodeURIComponent(`${greeting} I browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`)}`
+}
+
+// ── Device ID — stable anonymous identifier stored in localStorage ────────────
+function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem('skss_device_id')
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('skss_device_id', id) }
+    return id
+  } catch { return 'unknown' }
 }
 
 // share shortlist via URL
 function buildShareUrl(items: WishlistItem[]) {
   const ids = items.map(it => it.id).join(',')
   return `${window.location.origin}/catalogue?saved=${encodeURIComponent(ids)}`
+}
+
+// ─── PhoneCaptureSheet ────────────────────────────────────────────────────────
+// Shown once before the customer books a call. Collects name + phone.
+// After submission, stores the session in Supabase catalogue_sessions and
+// saves name to localStorage so future sessions skip this step.
+function PhoneCaptureSheet({ wishlist, waNum, onClose }: {
+  wishlist: WishlistItem[]
+  waNum: string
+  onClose: () => void
+}) {
+  const [name,     setName]     = useState('')
+  const [phone,    setPhone]    = useState('')
+  const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
+  const nameRef  = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { setTimeout(() => nameRef.current?.focus(), 300) }, [])
+
+  const handleSubmit = async () => {
+    const n = name.trim()
+    const p = phone.replace(/\D/g, '')
+    if (!n) { setError('Please enter your name'); return }
+    if (p.length < 10) { setError('Please enter a valid 10-digit phone number'); return }
+    setError(''); setLoading(true)
+
+    try {
+      // Save to Supabase in background — don't block the WhatsApp open
+      fetch('/api/catalogue-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: n, phone: p, wishlist, device_id: getDeviceId() }),
+      }).catch(() => {}) // fire and forget — never block the user
+
+      // Persist name so we skip this form next time
+      localStorage.setItem('skss_customer_name', n)
+      localStorage.setItem('skss_customer_phone', p)
+
+      // Open WhatsApp
+      window.open(buildWA(wishlist, waNum, n), '_blank', 'noopener,noreferrer')
+      onClose()
+    } catch {
+      setLoading(false)
+      setError('Something went wrong. Please try again.')
+    }
+  }
+
+  const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit() }
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 500, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)' }}/>
+      <div style={{
+        position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+        width: '100%', maxWidth: 480, zIndex: 501,
+        background: '#0f0a06', borderRadius: '20px 20px 0 0',
+        padding: '0 0 40px',
+        boxShadow: '0 -16px 60px rgba(0,0,0,0.95)',
+        animation: 'sheetUp 0.35s cubic-bezier(0.32,0.72,0,1)',
+      }}>
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 4px' }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }}/>
+        </div>
+
+        <div style={{ padding: '16px 24px 0' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', lineHeight: 1.2 }}>Almost there!</h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 4, lineHeight: 1.5 }}>
+                Just your name and number so we know who to expect on WhatsApp.
+              </p>
+            </div>
+            <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: 12 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          {/* Wishlist preview — shows what they're booking about */}
+          <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 14px', marginBottom: 20 }}>
+            <p style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(201,168,76,0.7)', marginBottom: 6, fontWeight: 600 }}>Your shortlist</p>
+            {wishlist.slice(0, 3).map(it => (
+              <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'rgba(201,168,76,0.5)', flexShrink: 0 }}/>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+                <span style={{ fontSize: 12, color: 'rgba(201,168,76,0.8)', flexShrink: 0 }}>{fmt(it.salePrice ?? it.originalPrice)}</span>
+              </div>
+            ))}
+            {wishlist.length > 3 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>+{wishlist.length - 3} more sarees</p>}
+          </div>
+
+          {/* Name field */}
+          <div style={{ marginBottom: 14 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 600, display: 'block', marginBottom: 7 }}>Your name</label>
+            <input
+              ref={nameRef}
+              type="text"
+              value={name}
+              onChange={e => { setName(e.target.value); setError('') }}
+              onKeyDown={handleKey}
+              placeholder="e.g. Priya Sharma"
+              autoComplete="name"
+              style={{
+                width: '100%', height: 50, borderRadius: 12, padding: '0 16px',
+                background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.12)',
+                color: '#fff', fontSize: 15, outline: 'none',
+                fontFamily: 'var(--font-body)',
+              }}
+            />
+          </div>
+
+          {/* Phone field */}
+          <div style={{ marginBottom: error ? 10 : 20 }}>
+            <label style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 600, display: 'block', marginBottom: 7 }}>WhatsApp number</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>+91</span>
+              <input
+                type="tel"
+                value={phone}
+                onChange={e => { setPhone(e.target.value); setError('') }}
+                onKeyDown={handleKey}
+                placeholder="98765 43210"
+                autoComplete="tel"
+                inputMode="numeric"
+                maxLength={15}
+                style={{
+                  width: '100%', height: 50, borderRadius: 12, padding: '0 16px 0 52px',
+                  background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.12)',
+                  color: '#fff', fontSize: 15, outline: 'none',
+                  fontFamily: 'var(--font-body)',
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && <p style={{ fontSize: 12, color: '#f87171', marginBottom: 14 }}>{error}</p>}
+
+          {/* Privacy note */}
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginBottom: 16, lineHeight: 1.5 }}>
+            We use this only to contact you about your shortlist. We never share your details.
+          </p>
+
+          {/* Submit */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            style={{
+              width: '100%', height: 54, borderRadius: 14,
+              background: loading ? 'rgba(37,211,102,0.5)' : '#25D366',
+              border: 'none', color: '#fff',
+              fontSize: 16, fontWeight: 700,
+              cursor: loading ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              boxShadow: '0 4px 20px rgba(37,211,102,0.3)',
+              transition: 'background 0.2s',
+            }}
+          >
+            {loading ? (
+              <span style={{ opacity: 0.7 }}>Opening WhatsApp…</span>
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                Open WhatsApp to Book
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </>
+  )
 }
 
 const BUDGETS = [
@@ -279,8 +461,8 @@ function TinderCard({ product, stackIndex, isTop, dragProgress, onSwipe, onTap, 
 }
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
-function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale }: {
-  product: CatalogueProduct; isLoved: boolean; onClose: () => void; onLove: () => void; waNum: string; flashSale: FlashSale
+function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale, onBookCall }: {
+  product: CatalogueProduct; isLoved: boolean; onClose: () => void; onLove: () => void; waNum: string; flashSale: FlashSale; onBookCall: () => void
 }) {
   const [activeImg, setActiveImg] = useState(0)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -437,7 +619,7 @@ function DetailSheet({ product, isLoved, onClose, onLove, waNum, flashSale }: {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="#25D366" style={{ flexShrink: 0 }}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5 }}>
                   See this in more colours or explore similar designs.<br/>
-                  <button onClick={() => window.open(buildWA([toWL(product)], waNum), '_blank', 'noopener')} style={{ background: 'none', border: 'none', color: '#25D366', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 2 }}>Message us on WhatsApp →</button>
+                  <button onClick={() => { onClose(); setTimeout(onBookCall, 100) }} style={{ background: 'none', border: 'none', color: '#25D366', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 2 }}>Message us on WhatsApp →</button>
                 </p>
               </div>
             )}
@@ -592,6 +774,7 @@ export default function CataloguePage() {
   const [undoSkip,     setUndoSkip]     = useState<{ p: CatalogueProduct; t: ReturnType<typeof setTimeout> } | null>(null)
   const [undoRm,       setUndoRm]       = useState<{ it: WishlistItem; t: ReturnType<typeof setTimeout> } | null>(null)
   const [dragProg,     setDragProg]     = useState(0)
+  const [showCapture,  setShowCapture]  = useState(false)
   const [catFilter,    setCatFilter]    = useState('All')
   const [budgetIdx,    setBudgetIdx]    = useState(0)
   const [occasionFilter, setOccasionFilter] = useState<string | null>(null)
@@ -641,7 +824,7 @@ export default function CataloguePage() {
     }).catch(() => setLoading(false))
   }, [])
 
-  // Restore saved wishlist + shared list from URL
+  // Restore saved wishlist + shared list from URL, and pre-fill customer info
   useEffect(() => {
     try { const s = localStorage.getItem('skss_wl'); if (s) setWishlist(JSON.parse(s)) } catch {}
     // Check for shared list in URL
@@ -679,6 +862,18 @@ export default function CataloguePage() {
     if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
     setDragProg(0); setIdx(i => i + 1)
   }, [products, idx, save, undoSkip])
+
+  // Central booking handler — always goes through phone capture if not yet captured
+  const handleBookCall = useCallback(() => {
+    const savedName = localStorage.getItem('skss_customer_name')
+    if (savedName) {
+      // Already captured — open WhatsApp directly with their name
+      window.open(buildWA(wishlist, waNum, savedName), '_blank', 'noopener,noreferrer')
+    } else {
+      // First time — show phone capture sheet
+      setShowCapture(true)
+    }
+  }, [wishlist, waNum])
 
   const btnSwipe = useCallback((dir: 1 | -1) => {
     const el = document.querySelector<HTMLElement>('[data-top-card]')
@@ -830,7 +1025,7 @@ export default function CataloguePage() {
           {/* Floating WhatsApp pill — total price included */}
           {wishlist.length >= 2 && !showWL && !detail && waNum && (
             <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', zIndex: 40, animation: 'floatIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
-              <button onClick={() => window.open(buildWA(wishlist, waNum), '_blank', 'noopener')}
+              <button onClick={handleBookCall}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', border: 'none', borderRadius: 28, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 24px rgba(37,211,102,0.45)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 Book a call · {wishlist.length} saved · {fmt(wishlist.reduce((s,it) => s+(it.salePrice??it.originalPrice),0))}
@@ -850,8 +1045,9 @@ export default function CataloguePage() {
 
       <style>{`@keyframes floatIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}`}</style>
 
-      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale}/>}
-      {showWL  && <WishlistScreen items={wishlist} onClose={() => setShowWL(false)} onRemove={remove} onCall={() => window.open(buildWA(wishlist, waNum), '_blank', 'noopener')} waNum={waNum}/>}
+      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)}/> }
+      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall}/>}
+      {showWL  && <WishlistScreen items={wishlist} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum}/>}
     </>
   )
 }
