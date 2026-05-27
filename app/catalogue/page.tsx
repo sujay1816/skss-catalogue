@@ -154,7 +154,7 @@ function SwipeCard({
       style={{
         position: 'absolute',
         width: 'calc(100% - 32px)',
-        height: 'min(72vh, 560px)',
+        height: 'min(calc(100dvh - 240px), 600px)',
         borderRadius: 24,
         overflow: 'hidden',
         cursor: isTop ? 'grab' : 'default',
@@ -1096,8 +1096,7 @@ export default function CataloguePage() {
         ) : (
           <div style={{
             position: 'absolute',
-            top: '50%', left: 0, right: 0,
-            transform: 'translateY(-52%)',
+            top: 100, left: 0, right: 0, bottom: 130,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
             {currentProducts.map((product, i) => (
