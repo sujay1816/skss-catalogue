@@ -37,6 +37,7 @@ function TinderCard({ product, stackIndex, isTop, onSwipe, onTap, onDragProgress
   product: CatalogueProduct
   stackIndex: number           // 0 = top, 1 = middle, 2 = back
   isTop: boolean
+  dragProgress: number         // -1 to 1, drives back-card lift animation
   onSwipe: (dir: 1 | -1) => void
   onTap: () => void
   onDragProgress: (p: number) => void
