@@ -255,7 +255,6 @@ export function DetailSheet({
                         <span style={{ fontSize: 13, color: v.stock === 0 ? 'rgba(255,255,255,0.35)' : isSelected ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.7)', fontWeight: isSelected ? 600 : 500, textDecoration: v.stock === 0 ? 'line-through' : 'none' }}>{v.colour}</span>
                         {v.stock > 0 && v.stock <= 3 && <span style={{ fontSize: 10, color: '#f87171', fontWeight: 600 }}>· {v.stock} left</span>}
                         {v.stock === 0 && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.25)', fontWeight: 500 }}>sold out</span>}
-                        {v.imageUrl && v.stock > 0 && !isSelected && <span style={{ fontSize: 10, color: 'rgba(201,168,76,0.5)' }}>tap to preview</span>}
                       </button>
                     )
                   })}

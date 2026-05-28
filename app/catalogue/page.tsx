@@ -620,19 +620,29 @@ export default function CataloguePage() {
               >
                 <Logo config={config}/>
               </button>
-              {/* FIX-11: occasion chip taps to open screen (not just clear) */}
+              {/* Occasion chip: chevron re-opens screen, × clears filter directly */}
               {occasionFilter && (
-                <button
-                  onClick={() => {
-                    // FIX-11: tap chip → reopen occasion screen
-                    try { localStorage.removeItem('skss_onboarded_at') } catch {}
-                    setShowOnboard(true)
-                  }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '2px 8px', cursor: 'pointer', width: 'fit-content' }}
-                >
-                  <span style={{ fontSize: 10, color: 'var(--gold, #C9A84C)', fontWeight: 500 }}>{occasionFilter}</span>
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #C9A84C)" strokeWidth="3"><path d="M9 18l6-6-6-6"/></svg>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '2px 4px 2px 8px', width: 'fit-content' }}>
+                  <button
+                    onClick={() => {
+                      try { localStorage.removeItem('skss_onboarded_at') } catch {}
+                      setShowOnboard(true)
+                    }}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    title="Change occasion"
+                  >
+                    <span style={{ fontSize: 10, color: 'var(--gold, #C9A84C)', fontWeight: 500 }}>{occasionFilter}</span>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #C9A84C)" strokeWidth="3"><path d="M9 18l6-6-6-6"/></svg>
+                  </button>
+                  <button
+                    onClick={() => { setOccasionFilter(null); try { localStorage.removeItem('skss_occasion') } catch {} }}
+                    style={{ background: 'rgba(201,168,76,0.15)', border: 'none', borderRadius: '50%', width: 16, height: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }}
+                    title="Clear occasion filter"
+                    aria-label="Clear occasion filter"
+                  >
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #C9A84C)" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -707,7 +717,7 @@ export default function CataloguePage() {
                 {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,var(--crimson, #8B1A2B),var(--crimson-dark, #6B1220))', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book a call</button>}
                 {products.length > 0 && <button onClick={() => { setIdx(0); setSeenIds(new Set()) }} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
                 {canLoadMore && (
-                  <button onClick={async () => { await loadMore(); setIdx(0) }} disabled={loadingMore}
+                  <button onClick={async () => { const prevLen = allProducts.length; await loadMore(); setIdx(prevLen) }} disabled={loadingMore}
                     style={{ padding: '13px 0', width: '100%', background: loadingMore ? 'rgba(201,168,76,0.1)' : 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 14, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: loadingMore ? 'default' : 'pointer' }}>
                     {loadingMore ? 'Loading more sarees…' : `Load more · ${totalProducts - allProducts.length} remaining`}
                   </button>
@@ -731,21 +741,13 @@ export default function CataloguePage() {
             )}
           </div>
 
-          {/* Progress bar — FIX-15: uses CSS variable */}
-          {!isDone && products.length > 0 && idx > 0 && (
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
-              <div style={{ height: 3, flex: 1, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.round((idx / Math.max(products.length, 1)) * 100)}%`, background: 'var(--gold, #C9A84C)', borderRadius: 2, transition: 'width 0.3s ease' }}/>
-              </div>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginLeft: 10, flexShrink: 0 }}>{products.length - idx} left</span>
-            </div>
-          )}
+
 
           {/* Undo hint — inline so it pushes the pill down instead of overlapping it */}
           {undoHintActive && (
             <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 4, animation: 'floatUp 0.3s ease' }}>
               <div style={{ background: 'rgba(251,191,36,0.95)', borderRadius: 20, padding: '6px 14px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap ↩ to undo that skip</p>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap Undo below to go back</p>
               </div>
             </div>
           )}
