@@ -61,6 +61,7 @@ function buildWA(items: WishlistItem[], waNum: string, customerName?: string, oc
     ? template
         .replace('{greeting}', greeting)
         .replace('{occLine}', occLine)
+        .replace('{slotLine}', slotLine)   // FIX-4: slot in template path too
         .replace('{list}', list)
         .replace('{total}', fmt(total))
     : `${greeting}${occLine}${slotLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`
@@ -120,6 +121,7 @@ export default function CataloguePage() {
   const stackRef          = useRef<HTMLDivElement>(null)
   const labelsShownRef    = useRef(false)
   const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
+  const currentIdxRef     = useRef(0)      // FIX-2+3: stable idx for loadMore's rerankDeck call
 
   // FIX-4: affinity weights updated on each right-swipe
   const affinityRef = useRef<{ fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }>({
@@ -185,13 +187,20 @@ export default function CataloguePage() {
   const isDone      = !loading && idx >= products.length
   const canLoadMore = isDone && allProducts.length < totalProducts && products.length === allProducts.length
 
-  // FIX-4: re-rank the unseen portion of the deck after every 3rd right-swipe
-  const rerankDeck = useCallback((all: CatalogueProduct[]) => {
+  // FIX-2+3: re-rank only the UNSEEN tail (idx+1 onward) so cards already in
+  // the visible stack never jump. Takes current idx so it knows the cut point.
+  const rerankDeck = useCallback((all: CatalogueProduct[], currentIdx: number) => {
     const aff = affinityRef.current
     const hasAffinity = Object.keys(aff.fabrics).length > 0 || Object.keys(aff.occasions).length > 0
     if (!hasAffinity) { setRankedProducts([]); return }
-    const sorted = [...all].sort((a, b) => scoreProduct(b, aff) - scoreProduct(a, aff))
-    setRankedProducts(sorted)
+
+    // Split: head = everything up to and including current card (already dealt)
+    // tail  = everything from idx+1 onward (not yet seen)
+    const head = all.slice(0, currentIdx + 1)
+    const tail = all.slice(currentIdx + 1)
+
+    const sortedTail = [...tail].sort((a, b) => scoreProduct(b, aff) - scoreProduct(a, aff))
+    setRankedProducts([...head, ...sortedTail])
   }, [])
 
   // Card dimensions
@@ -209,6 +218,7 @@ export default function CataloguePage() {
   }, [])
 
   useEffect(() => { setIdx(0) }, [catFilter, budgetIdx, occasionFilter])
+  useEffect(() => { currentIdxRef.current = idx }, [idx])  // FIX-2+3: keep ref in sync
 
   useEffect(() => {
     if (!loading) return
@@ -318,7 +328,7 @@ export default function CataloguePage() {
       save(p)
       if (undoSkip) { clearTimeout(undoSkip.t); setUndoSkip(null) }
 
-      // FIX-4: update affinity weights, re-rank every 3rd right-swipe
+      // FIX-2+3: write affinity weights and re-rank only the unseen tail every 3rd save
       const aff = affinityRef.current
       if (p.fabric) aff.fabrics[p.fabric] = (aff.fabrics[p.fabric] || 0) + 1
       for (const occ of p.occasion || []) aff.occasions[occ] = (aff.occasions[occ] || 0) + 1
@@ -326,7 +336,9 @@ export default function CataloguePage() {
       aff.maxPrice = Math.max(aff.maxPrice, price)
       aff.minPrice = Math.min(aff.minPrice === Infinity ? price : aff.minPrice, price)
       const rightSwipes = Object.values(aff.fabrics).reduce((a, b) => a + b, 0)
-      if (rightSwipes % 3 === 0) rerankDeck(allProducts)
+      // Pass idx (current position) so rerankDeck cuts the tail correctly.
+      // allProducts is the full unfiltered set — filtered view is applied on top via products derivation.
+      if (rightSwipes % 3 === 0) rerankDeck(allProducts, idx)
 
       // FIX-10: double-pulse haptic for save
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([10, 50, 10])
@@ -392,9 +404,11 @@ export default function CataloguePage() {
       const pd  = await res.json()
       if (pd.products?.length > 0) {
         setAllProducts(prev => {
-          const ids = new Set(prev.map(p => p.id))
+          const ids    = new Set(prev.map(p => p.id))
           const merged = [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
-          rerankDeck(merged)
+          // New products are appended to the end — re-rank with current idx so
+          // we only sort the tail the user hasn't reached yet.
+          rerankDeck(merged, currentIdxRef.current)
           return merged
         })
       }
