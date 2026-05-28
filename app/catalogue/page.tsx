@@ -518,7 +518,7 @@ export default function CataloguePage() {
         <div style={{ width: '100%', maxWidth: 480, height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0d0805', overflow: 'hidden' }}>
 
           {/* Top bar */}
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 12px) + 36px) 20px 12px' }}>
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 0px) + 36px) 20px 12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <button
                 onPointerDown={() => { longPressRef.current = Date.now() }}
@@ -567,7 +567,13 @@ export default function CataloguePage() {
 
           {/* FIX-12: filter bar with fade mask wrapper */}
           <div className="filter-bar-wrap" style={{ flexShrink: 0 }}>
-            <div style={{ display: 'flex', gap: 7, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
+            <div
+              style={{ display: 'flex', gap: 7, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}
+              onScroll={e => {
+                const el = e.currentTarget.closest('.filter-bar-wrap') as HTMLElement | null
+                if (el) el.classList.toggle('scrolled', e.currentTarget.scrollLeft > 8)
+              }}
+            >
               {(showMoreCats ? categories : categories.slice(0, 5)).map(cat => (
                 <button key={cat} onClick={() => setCatFilter(cat)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: catFilter === cat ? '1.5px solid var(--gold, #C9A84C)' : '1px solid rgba(255,255,255,0.12)', background: catFilter === cat ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', color: catFilter === cat ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{cat}</button>
               ))}
@@ -675,7 +681,7 @@ export default function CataloguePage() {
 
           {/* Action buttons */}
           {!isDone && (
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: '2px 0 20px', position: 'relative' }}>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: 'calc(2px) 0 calc(20px + env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
               {[
                 { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
                 { label: 'Skip', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>, onClick: () => btnSwipe(-1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#F87171', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Skip this saree' },

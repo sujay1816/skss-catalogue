@@ -15,8 +15,8 @@
   --text-light:     rgba(255,255,255,0.92);
   --text-muted:     rgba(255,255,255,0.55);
   --text-hint:      rgba(255,255,255,0.35);
-  --font-heading:   'Cormorant Garamond', Georgia, serif;
-  --font-body:      'DM Sans', system-ui, sans-serif;
+  --font-heading:   Georgia, serif;
+  --font-body:      system-ui, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -22,6 +22,11 @@ export async function POST(request: Request) {
 
   const safeDeviceId = (device_id && device_id !== 'unknown') ? device_id : null
 
+  // If we have no reliable device_id we can't upsert safely (NULL != NULL in SQL
+  // means every call would INSERT a new row). Fall back to a plain insert with phone
+  // as the conflict key so we still capture the session without flooding the table.
+  const upsertKey = safeDeviceId ? 'device_id' : 'phone'
+
   const { data, error } = await supabase
     .from('catalogue_sessions')
     .upsert(
@@ -34,7 +39,7 @@ export async function POST(request: Request) {
         preferred_slot: preferred_slot ?? null,
         updated_at:     new Date().toISOString(),
       },
-      { onConflict: 'device_id', ignoreDuplicates: false }
+      { onConflict: upsertKey, ignoreDuplicates: false }
     )
     .select('id')
     .maybeSingle()

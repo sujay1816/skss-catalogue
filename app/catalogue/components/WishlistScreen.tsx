@@ -112,7 +112,7 @@ export function WishlistScreen({
           </div>
 
           {/* Footer — FIX-5: intent-anchored total + contextual CTA */}
-          <div style={{ padding: '16px 16px 36px', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(8,5,2,0.98)', flexShrink: 0 }}>
+          <div style={{ padding: `16px 16px calc(36px + env(safe-area-inset-bottom, 0px))`, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'rgba(8,5,2,0.98)', flexShrink: 0 }}>
             {/* FIX-5: big total as anchor */}
             <div style={{ background: 'rgba(201,168,76,0.06)', border: '1px solid rgba(201,168,76,0.15)', borderRadius: 12, padding: '12px 16px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>

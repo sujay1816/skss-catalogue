@@ -44,7 +44,7 @@ export function OccasionScreen({
         background: 'var(--ivory, #FDFAF7)',
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        padding: '0 20px', overflowY: 'auto',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 20px 20px', overflowY: 'auto',
         animation: 'occasionFadeIn 0.4s ease',
       }}
     >
