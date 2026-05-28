@@ -126,6 +126,11 @@ export default function CataloguePage() {
   const pendingSavedRef   = useRef<string[] | null>(null)
   const longPressRef      = useRef<number>(0)
   const syncTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Fix 3: store undo-hint timer so it can be cancelled on unmount
+  const undoHintTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Fix 4: store toast dismiss timers so a rapid second toast cancels the first
+  const savedToastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sharedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stackRef          = useRef<HTMLDivElement>(null)
   const labelsShownRef    = useRef(false)
   const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
@@ -275,7 +280,13 @@ export default function CataloguePage() {
 
     // Wave 2: products + flash-sales (heavier) — updates deck once ready
     Promise.allSettled([
-      fetchWithTimeout('/api/products?limit=80').then(r => r.json()),
+      fetchWithTimeout('/api/products?limit=80').then(r => {
+        // Fix: guard HTTP errors — a 4xx/5xx body was silently parsed as valid
+        // data, leaving pd.products undefined and the catalogue blank with no
+        // error state. Throwing here routes into the 'rejected' branch below.
+        if (!r.ok) throw new Error(`products ${r.status}`)
+        return r.json()
+      }),
       fetchWithTimeout('/api/flash-sales').then(r => r.json()).catch(() => null),
     ]).then(([pdRes, flashRes]) => {
       if (cancelled) return
@@ -311,7 +322,8 @@ export default function CataloguePage() {
         return [...prev, ...matching.filter(p => !existingIds.has(p.id)).map(toWL)]
       })
       setSharedToast(`${matching.length} saree${matching.length !== 1 ? 's' : ''} shared with you`)
-      setTimeout(() => setSharedToast(''), 3500)
+      if (sharedToastTimerRef.current) clearTimeout(sharedToastTimerRef.current)
+      sharedToastTimerRef.current = setTimeout(() => setSharedToast(''), 3500)
     }
     pendingSavedRef.current = null
     try { window.history.replaceState({}, '', '/catalogue') } catch {}
@@ -338,6 +350,16 @@ export default function CataloguePage() {
     }, 3000)
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current) }
   }, [wishlist])
+
+  // Fix 3 & 4: clear all fire-and-forget timers on unmount to prevent
+  // state updates on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (undoHintTimerRef.current)  clearTimeout(undoHintTimerRef.current)
+      if (savedToastTimerRef.current)  clearTimeout(savedToastTimerRef.current)
+      if (sharedToastTimerRef.current) clearTimeout(sharedToastTimerRef.current)
+    }
+  }, [])
 
   const loved  = useCallback((id: string) => wishlist.some(it => it.id === id), [wishlist])
   const save   = useCallback((p: CatalogueProduct) => {
@@ -388,7 +410,8 @@ export default function CataloguePage() {
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
       if (!undoHintShown) {
         setUndoHintShown(true); setUndoHintActive(true)
-        setTimeout(() => setUndoHintActive(false), 2500)
+        if (undoHintTimerRef.current) clearTimeout(undoHintTimerRef.current)
+        undoHintTimerRef.current = setTimeout(() => setUndoHintActive(false), 2500)
       }
       if (undoSkip) clearTimeout(undoSkip.t)
       // BUG-1 FIX: store the exact idx at the time of skip so undo can restore
@@ -401,7 +424,9 @@ export default function CataloguePage() {
     // FIX-13: truncate product name in toast
     if (dir === 1) {
       const name = p.name.length > 28 ? p.name.slice(0, 28) + '…' : p.name
-      setSavedToast(name); setTimeout(() => setSavedToast(''), 1800)
+      setSavedToast(name)
+      if (savedToastTimerRef.current) clearTimeout(savedToastTimerRef.current)
+      savedToastTimerRef.current = setTimeout(() => setSavedToast(''), 1800)
     }
     setDragProg(0); setIdx(i => i + 1)
   }, [save, undoSkip, undoHintShown, rerankDeck])
@@ -415,7 +440,8 @@ export default function CataloguePage() {
     if (wishlist.length === 0) return
     if (!waNum) {
       setSavedToast('WhatsApp not configured — contact the shop directly')
-      setTimeout(() => setSavedToast(''), 3000)
+      if (savedToastTimerRef.current) clearTimeout(savedToastTimerRef.current)
+      savedToastTimerRef.current = setTimeout(() => setSavedToast(''), 3000)
       return
     }
     setShowCapture(true)
@@ -463,6 +489,7 @@ export default function CataloguePage() {
     setLoadingMore(true)
     try {
       const res = await fetchWithTimeout(`/api/products?limit=40&offset=${allProducts.length}`)
+      if (!res.ok) throw new Error(`products ${res.status}`)
       const pd  = await res.json()
       if (pd.products?.length > 0) {
         setAllProducts(prev => {

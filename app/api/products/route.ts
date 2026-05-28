@@ -64,8 +64,6 @@ export async function GET(request: Request) {
         isPrimary: i.is_primary, order: i.order_index,
       }))
     const totalStock = variants.reduce((s: number, v: { stock: number }) => s + (v.stock || 0), 0)
-    const createdAt = new Date(r.created_at)
-    const isNew = (Date.now() - createdAt.getTime()) < 30 * 86400000
 
     return {
       id: r.id, name: r.name, slug: r.slug,
