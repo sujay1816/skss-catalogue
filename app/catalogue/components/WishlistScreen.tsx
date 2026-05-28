@@ -7,8 +7,8 @@ import type { SiteConfig } from '../types'
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN')
 
 function buildShareUrl(items: WishlistItem[]) {
-  const slugs = items.map(it => it.slug).join(',')
-  return `${window.location.origin}/catalogue?saved=${encodeURIComponent(slugs)}`
+  const ids = items.map(it => it.id).join(',')
+  return `${window.location.origin}/catalogue?saved=${encodeURIComponent(ids)}`
 }
 
 // FIX-5: intent-anchored copy in footer — shows total prominently + contextual CTA
@@ -77,8 +77,7 @@ export function WishlistScreen({
           <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(139,26,43,0.12)', border: '1px solid rgba(139,26,43,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🥻</div>
           <div>
             <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>{emptyTitle}</h2>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}
-               style={{ whiteSpace: 'pre-line' }}>{emptyBody}</p>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{emptyBody}</p>
           </div>
           <button onClick={onClose} style={{ marginTop: 8, padding: '12px 28px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, color: '#F8A3AF', fontSize: 14, cursor: 'pointer' }}>Start browsing</button>
         </div>
@@ -87,7 +86,7 @@ export function WishlistScreen({
           <p style={{ flexShrink: 0, fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center', padding: '6px 0 0', letterSpacing: 0.3 }}>Tap any saree to view details</p>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 0 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: items.length === 1 ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 8, maxWidth: items.length === 1 ? 220 : '100%', margin: items.length === 1 ? '0 auto 8px' : '0 0 8px' }}>
               {items.map(it => (
                 <div key={it.id} onClick={() => onOpenDetail(it.id)} style={{ borderRadius: 16, overflow: 'hidden', background: '#1a1008', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', cursor: 'pointer' }}>
                   <div style={{ aspectRatio: '3/4', position: 'relative', overflow: 'hidden' }}>

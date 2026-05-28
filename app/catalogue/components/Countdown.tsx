@@ -5,7 +5,9 @@ export function Countdown({ endsAt }: { endsAt: string }) {
   const [label, setLabel] = useState('')
   useEffect(() => {
     const tick = () => {
-      const diff = new Date(endsAt).getTime() - Date.now()
+      const end  = new Date(endsAt).getTime()
+      if (isNaN(end)) { setLabel(''); return }
+      const diff = end - Date.now()
       if (diff <= 0) { setLabel('Ended'); return }
       const h = Math.floor(diff / 3600000)
       const m = Math.floor((diff % 3600000) / 60000)

@@ -30,7 +30,7 @@ function buildSlots(): { label: string; value: string }[] {
   const tmrMorning = new Date(now)
   tmrMorning.setDate(tmrMorning.getDate() + 1)
   tmrMorning.setHours(10, 0, 0, 0)
-  addSlot(tmrMorning, 'morning (10–12 PM)')
+  addSlot(tmrMorning, 'morning (10 AM–12 PM)')
 
   // Tomorrow evening
   const tmrEvening = new Date(now)
@@ -43,7 +43,7 @@ function buildSlots(): { label: string; value: string }[] {
     const dayAfter = new Date(now)
     dayAfter.setDate(dayAfter.getDate() + 2)
     dayAfter.setHours(10, 0, 0, 0)
-    addSlot(dayAfter, 'morning (10–12 PM)')
+    addSlot(dayAfter, 'morning (10 AM–12 PM)')
   }
 
   return slots.slice(0, 3)
@@ -79,7 +79,7 @@ export function PhoneCaptureSheet({
     const n = name.trim()
     const p = phone.replace(/\D/g, '')
     if (!n) { setError('Please enter your name'); return }
-    if (p.length < 10) { setError('Please enter a valid 10-digit phone number'); return }
+    if (p.length < 10 || p.length > 10) { setError('Please enter a valid 10-digit phone number'); return }
     setError('')
     setLoading(true)
     try {

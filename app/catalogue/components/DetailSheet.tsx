@@ -281,7 +281,7 @@ export function DetailSheet({
                         <div style={{ width: 110, height: 146, borderRadius: 10, overflow: 'hidden', background: '#1a1008', position: 'relative', marginBottom: 7, border: '1px solid rgba(255,255,255,0.08)' }}>
                           {sImg ? <Image src={sImg} alt={s.name} fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="110px"/> : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🥻</div>}
                         </div>
-                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.3, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{s.name}</p>
                         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold, #C9A84C)' }}>{fmt(sPrice)}</p>
                       </button>
                     )

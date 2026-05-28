@@ -19,10 +19,10 @@ export async function GET() {
     .maybeSingle()
 
   if (error || !data) return NextResponse.json(null)
-  // Build a map: product_id -> sale_price
+  interface FlashSaleProduct { product_id: string | null; sale_price: number | null }
   const saleMap: Record<string, number> = {}
-  ;(data.flash_sale_products || []).forEach((fp: any) => {
-    if (fp.product_id) saleMap[fp.product_id] = fp.sale_price
+  ;(data.flash_sale_products || []).forEach((fp: FlashSaleProduct) => {
+    if (fp.product_id && fp.sale_price != null) saleMap[fp.product_id] = fp.sale_price
   })
   return NextResponse.json({ id: data.id, title: data.title, ends_at: data.ends_at, saleMap })
 }

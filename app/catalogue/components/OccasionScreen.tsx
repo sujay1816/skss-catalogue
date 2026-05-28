@@ -64,7 +64,11 @@ export function OccasionScreen({
       <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(24px, 7vw, 36px)', fontWeight: 300, color: '#1A1A1A', textAlign: 'center', lineHeight: 1.15, marginBottom: 6, letterSpacing: 0.5, flexShrink: 0 }}>
         {heading.includes('\n')
           ? heading.split('\n').map((line, i) => <span key={i}>{i > 0 && <br/>}{i === 1 ? <em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{line}</em> : line}</span>)
-          : <>{heading.split(' ').slice(0, -2).join(' ')}<br/><em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{heading.split(' ').slice(-2).join(' ')}</em></>
+          : (() => {
+              const words = heading.split(' ')
+              if (words.length <= 2) return <em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{heading}</em>
+              return <>{words.slice(0, -2).join(' ')}<br/><em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{words.slice(-2).join(' ')}</em></>
+            })()
         }
       </h1>
       <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#5A4A3A', marginBottom: 28, textAlign: 'center', lineHeight: 1.6, flexShrink: 0 }}>

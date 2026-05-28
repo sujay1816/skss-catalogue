@@ -163,7 +163,7 @@ export default function CataloguePage() {
   // FIX-4: ranked product deck
   const [rankedProducts, setRankedProducts] = useState<CatalogueProduct[]>([])
 
-  const waNum    = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || config.whatsapp_number || ''
+  const waNum    = config.whatsapp_number || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''
   const brandCss = [
     config.color_primary ? `--crimson:${config.color_primary};--crimson-dark:${config.color_primary}` : '',
     config.color_accent  ? `--gold:${config.color_accent};--gold-light:${config.color_accent}` : '',
@@ -380,12 +380,13 @@ export default function CataloguePage() {
 
   // FIX-3: slot param added, saved to session + injected into WA message
   const handleCaptureSubmit = useCallback((name: string, phone: string, slot?: string) => {
-    const storedPhone = phone.startsWith('91') ? phone : `91${phone}`
+    const digits      = phone.replace(/\D/g, '')
+    const storedPhone = digits.startsWith('91') ? digits : `91${digits}`
     localStorage.setItem('skss_customer_name', name)
     localStorage.setItem('skss_customer_phone', storedPhone)
     fetch('/api/catalogue-session', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
+      body: JSON.stringify({ name, phone: storedPhone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
     }).catch(() => {})
     window.open(buildWA(wishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot), '_blank', 'noopener,noreferrer')
   }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
@@ -413,15 +414,25 @@ export default function CataloguePage() {
       if (pd.products?.length > 0) {
         setAllProducts(prev => {
           const ids    = new Set(prev.map(p => p.id))
-          return [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
+          const merged = [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
+          // Rerank after state settles — setTimeout lets the new filteredProducts be computed first
+          setTimeout(() => rerankDeck(
+            merged.filter(p => {
+              const b = BUDGETS[budgetIdx]
+              const price = p.salePrice ?? p.originalPrice
+              const catOk    = catFilter === 'All' || p.categoryName === catFilter
+              const budgetOk = price >= b.min && price <= b.max
+              const occOk    = !occasionFilter || (p.occasion || []).includes(occasionFilter)
+              return catOk && budgetOk && occOk
+            }),
+            currentIdxRef.current
+          ), 0)
+          return merged
         })
-        // FIX-2: rerank is triggered on next render cycle after allProducts updates,
-        // so filteredProducts will be current. We call it here via a micro-task to
-        // let state settle first. The affinity guard means it's a no-op if no saves yet.
       }
     } catch {}
     setLoadingMore(false)
-  }, [loadingMore, allProducts.length, totalProducts])
+  }, [loadingMore, allProducts.length, totalProducts, rerankDeck, catFilter, budgetIdx, occasionFilter])
 
   // FIX-7: timestamp-based onboard save
   const handleOccasionSelect = useCallback((slug: string | null) => {
