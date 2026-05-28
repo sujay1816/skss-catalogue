@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import type { CatalogueProduct, WishlistItem } from '@/types'
 import type { SiteConfig, Occasion, FlashSale } from './types'
 
@@ -104,7 +105,6 @@ async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
 function SkeletonCard({ w, h }: { w: number; h: number }) {
   return (
     <div style={{ position: 'absolute', width: w, height: h, borderRadius: 16, overflow: 'hidden', background: '#1a1008' }}>
-      <style>{`@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}`}</style>
       <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s infinite' }}/>
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
         <div style={{ height: 28, width: '65%', background: 'rgba(255,255,255,0.06)', borderRadius: 6, marginBottom: 10 }}/>
@@ -481,20 +481,11 @@ export default function CataloguePage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [btnSwipe, detail, showWL, showCapture, showOnboard, products, idx, undoSkip])
 
-  const safeAreaStyle = `
-    :root { --sat: env(safe-area-inset-top, 0px); }
-    * { box-sizing: border-box; }
-    @keyframes sheetUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}}
-    @keyframes floatIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
-    @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
-    @keyframes btnLabelFade{0%,70%{opacity:1}100%{opacity:0}}
-    @keyframes pillAppear{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
-  `
 
   // ── Error ──────────────────────────────────────────────────────────────────
   if (loadError) return (
     <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32, textAlign: 'center' }}>
-      {config.logo_url ? <img src={config.logo_url} alt="logo" style={{ width: 52, height: 52, objectFit: 'contain', opacity: 0.7 }}/> : <svg width="44" height="44" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.4)" strokeWidth="1"/><line x1="10" y1="10" x2="24" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/><line x1="24" y1="10" x2="10" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/></svg>}
+      {config.logo_url ? <div style={{ position: 'relative', width: 52, height: 52 }}><Image src={config.logo_url} alt="logo" fill style={{ objectFit: 'contain', opacity: 0.7 }} sizes="52px" unoptimized/></div> : <svg width="44" height="44" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.4)" strokeWidth="1"/><line x1="10" y1="10" x2="24" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/><line x1="24" y1="10" x2="10" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/></svg>}
       <p style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>Couldn&apos;t load the catalogue</p>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Check your connection and try again.</p>
       <button onClick={() => { setLoadError(false); setLoading(true); window.location.reload() }} style={{ marginTop: 8, padding: '12px 32px', background: 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 12, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
@@ -504,9 +495,8 @@ export default function CataloguePage() {
   // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
-      <style>{safeAreaStyle}</style>
       {config.logo_url
-        ? <img src={config.logo_url} alt="logo" style={{ width: 64, height: 64, objectFit: 'contain', opacity: 0.9 }}/>
+        ? <div style={{ position: 'relative', width: 64, height: 64 }}><Image src={config.logo_url} alt="logo" fill style={{ objectFit: 'contain', opacity: 0.9 }} sizes="64px" unoptimized/></div>
         : <svg width="52" height="52" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.5)" strokeWidth="1"/><path d="M17 7C21 7 25 10 25 15C25 20 21 23 17 25C17 25 13 23 11 20C9 17 10 12 13 10C14.5 8.5 15.8 7 17 7Z" fill="rgba(139,26,43,0.7)" stroke="#C9A84C" strokeWidth="0.8"/><circle cx="17" cy="11" r="2" fill="#C9A84C"/></svg>
       }
       <div style={{ position: 'relative', width: dims.w, height: dims.h }}>
@@ -523,19 +513,6 @@ export default function CataloguePage() {
   return (
     <>
       {brandCss && <style>{`:root{${brandCss}}`}</style>}
-      <style>{safeAreaStyle}</style>
-      {/* FIX-12: filter bar fade mask via global style */}
-      <style>{`
-        .filter-bar-wrap { position: relative; }
-        .filter-bar-wrap::after {
-          content: '';
-          position: absolute;
-          right: 0; top: 0; bottom: 0;
-          width: 40px;
-          background: linear-gradient(to right, transparent, #0d0805);
-          pointer-events: none;
-        }
-      `}</style>
 
       <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 480, height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0d0805', overflow: 'hidden' }}>
@@ -674,7 +651,7 @@ export default function CataloguePage() {
 
           {/* Undo hint — inline so it pushes the pill down instead of overlapping it */}
           {undoHintActive && (
-            <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 4, animation: 'floatIn 0.3s ease' }}>
+            <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 4, animation: 'floatUp 0.3s ease' }}>
               <div style={{ background: 'rgba(251,191,36,0.95)', borderRadius: 20, padding: '6px 14px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
                 <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap ↩ to undo that skip</p>
               </div>
@@ -743,7 +720,7 @@ export default function CataloguePage() {
             </div>
           )}
           {undoRm && (
-            <div style={{ position: 'absolute', bottom: 110, left: 16, right: 16, zIndex: 50, background: 'rgba(15,10,5,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <div style={{ position: 'absolute', bottom: 'calc(110px + env(safe-area-inset-bottom, 0px))', left: 16, right: 16, zIndex: 50, background: 'rgba(15,10,5,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Removed from shortlist</span>
               <button onClick={() => { clearTimeout(undoRm.t); setWishlist(prev => prev.find(x => x.id === undoRm.it.id) ? prev : [...prev, undoRm.it]); setUndoRm(null) }} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 8, padding: '5px 14px', color: 'var(--gold, #C9A84C)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Undo</button>
             </div>

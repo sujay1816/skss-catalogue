@@ -210,7 +210,7 @@ export function DetailSheet({
                 } as React.CSSProperties}>
                   {product.description}
                 </p>
-                {product.description.length > 160 && (
+                {product.description.length > 300 && (
                   <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', color: 'var(--gold, #C9A84C)', fontSize: 13, cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
                     {descExpanded ? 'Show less ↑' : 'Show more ↓'}
                   </button>

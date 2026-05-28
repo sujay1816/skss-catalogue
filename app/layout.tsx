@@ -1,8 +1,23 @@
 import type { Metadata, Viewport } from 'next'
+import { Cormorant_Garamond, DM_Sans } from 'next/font/google'
 import { createClient } from '@supabase/supabase-js'
 import './globals.css'
 
-// Fetch brand + meta text from admin site_config at build/revalidation time
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  style: ['normal', 'italic'],
+  variable: '--font-heading',
+  display: 'swap',
+})
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-body',
+  display: 'swap',
+})
+
 async function getSiteConfig(): Promise<Record<string, string>> {
   try {
     const supabase = createClient(
@@ -35,10 +50,10 @@ export const viewport: Viewport = {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const cfg         = await getSiteConfig()
-  const brand       = cfg.brand_name       || process.env.NEXT_PUBLIC_BRAND_NAME || ''
-  const metaTitle   = cfg.catalogue_meta_title       || 'Swipe & Discover'
-  const metaDesc    = cfg.catalogue_meta_description || 'Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call.'
+  const cfg       = await getSiteConfig()
+  const brand     = cfg.brand_name                 || process.env.NEXT_PUBLIC_BRAND_NAME || ''
+  const metaTitle = cfg.catalogue_meta_title       || 'Swipe & Discover'
+  const metaDesc  = cfg.catalogue_meta_description || 'Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call.'
 
   return {
     title:       brand ? `${brand} — ${metaTitle}` : `Saree Catalogue — ${metaTitle}`,
@@ -60,15 +75,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${cormorant.variable} ${dmSans.variable}`}>
       <body>{children}</body>
     </html>
   )

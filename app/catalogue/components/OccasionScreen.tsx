@@ -1,9 +1,8 @@
 'use client'
 import { useEffect } from 'react'
+import Image from 'next/image'
 import type { Occasion, SiteConfig } from '../types'
 
-// FIX-6: occasionsLoaded prop added — auto-dismiss only fires after the fetch
-// has actually completed (not while occasions array is still empty mid-load).
 export function OccasionScreen({
   occasions,
   config,
@@ -20,23 +19,22 @@ export function OccasionScreen({
   const subtext   = config.catalogue_occasion_subtext    || "We'll show you the most relevant sarees first"
   const browseAll = config.catalogue_occasion_browse_all || 'Browse all sarees'
 
-  // FIX-6: only auto-dismiss when occasionsLoaded is true (Wave 1 resolved)
-  // and the result is genuinely empty — not just "not loaded yet"
   useEffect(() => {
     if (occasionsLoaded && occasions.length === 0) onSelect(null)
   }, [occasionsLoaded, occasions.length, onSelect])
 
-  // Show a loading state while Wave 1 is still in-flight
+  // Loading state — show dot + label while Wave 1 is in-flight
   if (!occasionsLoaded) return (
-    <div style={{ position: 'fixed', inset: 0, background: 'var(--ivory, #FDFAF7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--ivory, #FDFAF7)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
       <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', animation: 'pulse 1.2s ease infinite' }}/>
+      <p style={{ fontSize: 12, color: '#9A8070', letterSpacing: 0.5 }}>Loading…</p>
     </div>
   )
 
   if (occasions.length === 0) return null
 
-  const cols = occasions.length >= 6 ? 3 : 2
-  const maxW = cols === 3 ? 420 : 360
+  const cols  = occasions.length >= 6 ? 3 : 2
+  const maxW  = cols === 3 ? 420 : 360
   const items = occasions.slice(0, 6)
 
   return (
@@ -50,8 +48,6 @@ export function OccasionScreen({
         animation: 'occasionFadeIn 0.4s ease',
       }}
     >
-      <style>{`@keyframes occasionFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}} @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
-
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexShrink: 0 }}>
         <div style={{ height: 1, width: 32, background: 'linear-gradient(to right, transparent, #C9A84C)' }}/>
         <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }}/>
@@ -85,7 +81,7 @@ export function OccasionScreen({
             onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'translateY(0)'; el.style.boxShadow = '0 2px 16px rgba(139,26,43,0.08)' }}
           >
             {occ.image_url
-              ? <img src={occ.image_url} alt={occ.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}/>
+              ? <Image src={occ.image_url} alt={occ.name} fill style={{ objectFit: 'cover', objectPosition: 'top' }} sizes="(max-width:480px) 33vw, 140px"/>
               : <div style={{ width: '100%', height: '100%', background: 'linear-gradient(145deg, #F5EDE3, #EDE0D0)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 38 }}>🥻</div>
             }
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(139,26,43,0.75) 0%, transparent 55%)', pointerEvents: 'none' }}/>

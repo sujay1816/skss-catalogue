@@ -20,6 +20,8 @@ export async function POST(request: Request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  const safeDeviceId = (device_id && device_id !== 'unknown') ? device_id : null
+
   const { data, error } = await supabase
     .from('catalogue_sessions')
     .upsert(
@@ -28,8 +30,8 @@ export async function POST(request: Request) {
         phone:          digits.startsWith('91') ? digits : '91' + digits,
         wishlist:       wishlist ?? [],
         occasion:       occasion ?? null,
-        device_id:      device_id ?? null,
-        preferred_slot: preferred_slot ?? null,  // FIX-3: store chosen slot
+        device_id:      safeDeviceId,
+        preferred_slot: preferred_slot ?? null,
         updated_at:     new Date().toISOString(),
       },
       { onConflict: 'device_id', ignoreDuplicates: false }

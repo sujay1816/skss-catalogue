@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import type { SiteConfig } from '../types'
 
 export function Logo({ config }: { config: SiteConfig }) {
@@ -6,8 +7,8 @@ export function Logo({ config }: { config: SiteConfig }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
       {config.logo_url ? (
-        <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(201,168,76,0.3)', flexShrink: 0 }}>
-          <img src={config.logo_url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        <div style={{ width: 36, height: 36, borderRadius: 8, overflow: 'hidden', background: 'rgba(139,26,43,0.15)', border: '1px solid rgba(201,168,76,0.3)', flexShrink: 0, position: 'relative' }}>
+          <Image src={config.logo_url} alt={name} fill style={{ objectFit: 'contain' }} sizes="36px"/>
         </div>
       ) : (
         <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
