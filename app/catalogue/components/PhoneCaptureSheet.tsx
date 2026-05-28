@@ -5,42 +5,45 @@ import type { SiteConfig } from '../types'
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN')
 
-// FIX-3: slot picker — generates 3 upcoming time slots dynamically
+// FIX-3: d parameter now used to generate a precise readable label with day name
 function buildSlots(): { label: string; value: string }[] {
   const now   = new Date()
   const hour  = now.getHours()
   const slots: { label: string; value: string }[] = []
 
-  const addSlot = (d: Date, label: string) => {
+  const addSlot = (d: Date, time: string) => {
+    const isToday    = d.toDateString() === now.toDateString()
+    const isTomorrow = new Date(now.getTime() + 86400000).toDateString() === d.toDateString()
+    const dayName    = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : d.toLocaleDateString('en-IN', { weekday: 'long' })
+    const label      = `${dayName} ${time}`
     slots.push({ label, value: label })
   }
 
-  // Today evening (after 6 PM) — only show if before 7 PM
+  // Today evening — only show if it's before 7 PM
   if (hour < 19) {
     const todayEvening = new Date(now)
     todayEvening.setHours(18, 0, 0, 0)
-    if (todayEvening.getTime() > now.getTime()) addSlot(todayEvening, 'Today evening (6–8 PM)')
+    if (todayEvening.getTime() > now.getTime()) addSlot(todayEvening, 'evening (6–8 PM)')
   }
 
   // Tomorrow morning
   const tmrMorning = new Date(now)
   tmrMorning.setDate(tmrMorning.getDate() + 1)
   tmrMorning.setHours(10, 0, 0, 0)
-  addSlot(tmrMorning, 'Tomorrow morning (10–12 PM)')
+  addSlot(tmrMorning, 'morning (10–12 PM)')
 
   // Tomorrow evening
   const tmrEvening = new Date(now)
   tmrEvening.setDate(tmrEvening.getDate() + 1)
   tmrEvening.setHours(18, 0, 0, 0)
-  addSlot(tmrEvening, 'Tomorrow evening (6–8 PM)')
+  addSlot(tmrEvening, 'evening (6–8 PM)')
 
-  // Day after morning as fallback if we only have 1-2 slots
+  // Day after morning — fallback if we have fewer than 3 slots
   if (slots.length < 3) {
     const dayAfter = new Date(now)
     dayAfter.setDate(dayAfter.getDate() + 2)
     dayAfter.setHours(10, 0, 0, 0)
-    const day = dayAfter.toLocaleDateString('en-IN', { weekday: 'long' })
-    addSlot(dayAfter, `${day} morning (10–12 PM)`)
+    addSlot(dayAfter, 'morning (10–12 PM)')
   }
 
   return slots.slice(0, 3)
@@ -56,13 +59,13 @@ export function PhoneCaptureSheet({
   occasion?: string | null
   onSubmit: (name: string, phone: string, slot?: string) => void  // FIX-3: slot param
 }) {
-  const [name,    setName]    = useState('')
-  const [phone,   setPhone]   = useState('')
-  const [slot,    setSlot]    = useState('')      // FIX-3
+  const [name,    setName]    = useState(() => { try { return localStorage.getItem('skss_customer_name') || '' } catch { return '' } })
+  const [phone,   setPhone]   = useState(() => { try { const p = localStorage.getItem('skss_customer_phone') || ''; return p.startsWith('91') ? p.slice(2) : p } catch { return '' } })
+  const [slot,    setSlot]    = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
-  const slots   = buildSlots()                    // FIX-3
+  const slots   = buildSlots()
 
   const captureTitle    = config.catalogue_capture_title    || 'Almost there!'
   const captureSubtitle = config.catalogue_capture_subtitle || 'Just your name and number so we know who to expect on WhatsApp.'

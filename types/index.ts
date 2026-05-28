@@ -1,7 +1,7 @@
 export interface CatalogueVariant {
   id: string
   colour: string
-  colourHex: string
+  colourHex: string | null   // FIX-10: was string, DB column is nullable
   stock: number
   imageUrl: string | null
 }

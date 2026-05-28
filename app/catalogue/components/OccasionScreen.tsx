@@ -2,17 +2,17 @@
 import { useEffect } from 'react'
 import type { Occasion, SiteConfig } from '../types'
 
-// ─── OccasionScreen ──────────────────────────────────────────────────────────
-// B-2 FIX: onSelect(null) moved to useEffect — no longer called during render.
-// V-3: fade-in animation on mount.
-// All UI strings are driven from admin site_config via the config prop.
+// FIX-6: occasionsLoaded prop added — auto-dismiss only fires after the fetch
+// has actually completed (not while occasions array is still empty mid-load).
 export function OccasionScreen({
   occasions,
   config,
+  occasionsLoaded,
   onSelect,
 }: {
   occasions: Occasion[]
   config: SiteConfig
+  occasionsLoaded: boolean
   onSelect: (slug: string | null) => void
 }) {
   const eyebrow   = config.catalogue_occasion_eyebrow    || 'Curated for you'
@@ -20,10 +20,18 @@ export function OccasionScreen({
   const subtext   = config.catalogue_occasion_subtext    || "We'll show you the most relevant sarees first"
   const browseAll = config.catalogue_occasion_browse_all || 'Browse all sarees'
 
-  // B-2: was calling onSelect during render — now safely deferred
+  // FIX-6: only auto-dismiss when occasionsLoaded is true (Wave 1 resolved)
+  // and the result is genuinely empty — not just "not loaded yet"
   useEffect(() => {
-    if (occasions.length === 0) onSelect(null)
-  }, [occasions.length, onSelect])
+    if (occasionsLoaded && occasions.length === 0) onSelect(null)
+  }, [occasionsLoaded, occasions.length, onSelect])
+
+  // Show a loading state while Wave 1 is still in-flight
+  if (!occasionsLoaded) return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--ivory, #FDFAF7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C', animation: 'pulse 1.2s ease infinite' }}/>
+    </div>
+  )
 
   if (occasions.length === 0) return null
 
@@ -42,9 +50,8 @@ export function OccasionScreen({
         animation: 'occasionFadeIn 0.4s ease',
       }}
     >
-      <style>{`@keyframes occasionFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <style>{`@keyframes occasionFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}} @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}`}</style>
 
-      {/* Gold rule ornament */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexShrink: 0 }}>
         <div style={{ height: 1, width: 32, background: 'linear-gradient(to right, transparent, #C9A84C)' }}/>
         <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C9A84C' }}/>

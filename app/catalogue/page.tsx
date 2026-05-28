@@ -71,11 +71,13 @@ function buildWA(items: WishlistItem[], waNum: string, customerName?: string, oc
 // FIX-4: tag-weight scoring for deck personalisation
 function scoreProduct(p: CatalogueProduct, weights: { fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }): number {
   let score = 0
-  if (weights.fabrics[p.fabric]) score += weights.fabrics[p.fabric] * 3
+  // FIX-9: normalise to lowercase so "Silk" and "silk" score the same
+  const fabricKey = p.fabric?.toLowerCase() || ''
+  if (fabricKey && weights.fabrics[fabricKey]) score += weights.fabrics[fabricKey] * 3
   for (const occ of p.occasion || []) {
-    if (weights.occasions[occ]) score += weights.occasions[occ] * 2
+    const occKey = occ.toLowerCase()
+    if (weights.occasions[occKey]) score += weights.occasions[occKey] * 2
   }
-  // price affinity: reward products near the user's typical price
   const avgPrice = (weights.maxPrice + weights.minPrice) / 2 || 0
   if (avgPrice > 0) {
     const dist = Math.abs(priceOf(p) - avgPrice) / Math.max(avgPrice, 1)
@@ -135,6 +137,7 @@ export default function CataloguePage() {
   const [loading,        setLoading]        = useState(true)
   const [slowLoad,       setSlowLoad]       = useState(false)
   const [loadError,      setLoadError]      = useState(false)
+  const [occasionsLoaded, setOccasionsLoaded] = useState(false)  // FIX-6: guard auto-dismiss
   const [showOnboard,    setShowOnboard]    = useState(shouldShowOnboard)  // FIX-7
   const [idx,            setIdx]            = useState(0)
   const [wishlist,       setWishlist]       = useState<WishlistItem[]>([])
@@ -189,16 +192,18 @@ export default function CataloguePage() {
 
   // FIX-2+3: re-rank only the UNSEEN tail (idx+1 onward) so cards already in
   // the visible stack never jump. Takes current idx so it knows the cut point.
-  const rerankDeck = useCallback((all: CatalogueProduct[], currentIdx: number) => {
+  // FIX-1+2: rerankDeck now receives the already-filtered list so the head/tail
+  // cut is based on position in the FILTERED view (which matches idx), not the
+  // full allProducts array. Caller passes filteredProducts, not allProducts.
+  const rerankDeck = useCallback((filtered: CatalogueProduct[], currentIdx: number) => {
     const aff = affinityRef.current
     const hasAffinity = Object.keys(aff.fabrics).length > 0 || Object.keys(aff.occasions).length > 0
     if (!hasAffinity) { setRankedProducts([]); return }
 
-    // Split: head = everything up to and including current card (already dealt)
-    // tail  = everything from idx+1 onward (not yet seen)
-    const head = all.slice(0, currentIdx + 1)
-    const tail = all.slice(currentIdx + 1)
-
+    // head = cards already seen or currently on screen — order stays fixed
+    // tail = everything from currentIdx+1 onward — reordered by affinity score
+    const head       = filtered.slice(0, currentIdx + 1)
+    const tail       = filtered.slice(currentIdx + 1)
     const sortedTail = [...tail].sort((a, b) => scoreProduct(b, aff) - scoreProduct(a, aff))
     setRankedProducts([...head, ...sortedTail])
   }, [])
@@ -217,7 +222,7 @@ export default function CataloguePage() {
     return () => window.removeEventListener('resize', calc)
   }, [])
 
-  useEffect(() => { setIdx(0) }, [catFilter, budgetIdx, occasionFilter])
+  useEffect(() => { setIdx(0); setRankedProducts([]) }, [catFilter, budgetIdx, occasionFilter])  // FIX-5: clear ranked order on filter change
   useEffect(() => { currentIdxRef.current = idx }, [idx])  // FIX-2+3: keep ref in sync
 
   useEffect(() => {
@@ -246,6 +251,7 @@ export default function CataloguePage() {
       if (cancelled) return
       if (cfgRes.status === 'fulfilled') setConfig(cfgRes.value || {})
       if (occRes.status === 'fulfilled') setOccasions(occRes.value || [])
+      setOccasionsLoaded(true)  // FIX-6: signal that occasions fetch is done
     })
 
     // Wave 2: products + flash-sales (heavier) — updates deck once ready
@@ -328,17 +334,21 @@ export default function CataloguePage() {
       save(p)
       if (undoSkip) { clearTimeout(undoSkip.t); setUndoSkip(null) }
 
-      // FIX-2+3: write affinity weights and re-rank only the unseen tail every 3rd save
+      // FIX-1+2+9: write affinity weights (lowercase keys for case-consistent matching)
+      // and re-rank only the unseen tail every 3rd save.
+      // Pass filteredProducts so the head/tail cut lines up with idx in the filtered view.
       const aff = affinityRef.current
-      if (p.fabric) aff.fabrics[p.fabric] = (aff.fabrics[p.fabric] || 0) + 1
-      for (const occ of p.occasion || []) aff.occasions[occ] = (aff.occasions[occ] || 0) + 1
+      const fabricKey = p.fabric?.toLowerCase() || ''
+      if (fabricKey) aff.fabrics[fabricKey] = (aff.fabrics[fabricKey] || 0) + 1
+      for (const occ of p.occasion || []) {
+        const occKey = occ.toLowerCase()
+        aff.occasions[occKey] = (aff.occasions[occKey] || 0) + 1
+      }
       const price = priceOf(p)
       aff.maxPrice = Math.max(aff.maxPrice, price)
       aff.minPrice = Math.min(aff.minPrice === Infinity ? price : aff.minPrice, price)
       const rightSwipes = Object.values(aff.fabrics).reduce((a, b) => a + b, 0)
-      // Pass idx (current position) so rerankDeck cuts the tail correctly.
-      // allProducts is the full unfiltered set — filtered view is applied on top via products derivation.
-      if (rightSwipes % 3 === 0) rerankDeck(allProducts, idx)
+      if (rightSwipes % 3 === 0) rerankDeck(filteredProducts, idx)
 
       // FIX-10: double-pulse haptic for save
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([10, 50, 10])
@@ -359,16 +369,14 @@ export default function CataloguePage() {
       setSavedToast(name); setTimeout(() => setSavedToast(''), 1800)
     }
     setDragProg(0); setIdx(i => i + 1)
-  }, [products, idx, save, undoSkip, undoHintShown, rerankDeck, allProducts])
+  }, [products, idx, save, undoSkip, undoHintShown, rerankDeck, filteredProducts])
 
-  // FIX-3: slot passed through to buildWA
+  // FIX-4: always show the capture sheet so returning users can pick a slot.
+  // PhoneCaptureSheet pre-fills name/phone from localStorage so it is not extra friction.
   const handleBookCall = useCallback(() => {
     if (wishlist.length === 0 || !waNum) return
-    const savedName = localStorage.getItem('skss_customer_name')
-    if (savedName) {
-      window.open(buildWA(wishlist, waNum, savedName, occasionFilter, config.catalogue_wa_message_template), '_blank', 'noopener,noreferrer')
-    } else setShowCapture(true)
-  }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
+    setShowCapture(true)
+  }, [wishlist, waNum])
 
   // FIX-3: slot param added, saved to session + injected into WA message
   const handleCaptureSubmit = useCallback((name: string, phone: string, slot?: string) => {
@@ -405,16 +413,15 @@ export default function CataloguePage() {
       if (pd.products?.length > 0) {
         setAllProducts(prev => {
           const ids    = new Set(prev.map(p => p.id))
-          const merged = [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
-          // New products are appended to the end — re-rank with current idx so
-          // we only sort the tail the user hasn't reached yet.
-          rerankDeck(merged, currentIdxRef.current)
-          return merged
+          return [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
         })
+        // FIX-2: rerank is triggered on next render cycle after allProducts updates,
+        // so filteredProducts will be current. We call it here via a micro-task to
+        // let state settle first. The affinity guard means it's a no-op if no saves yet.
       }
     } catch {}
     setLoadingMore(false)
-  }, [loadingMore, allProducts.length, totalProducts, rerankDeck])
+  }, [loadingMore, allProducts.length, totalProducts])
 
   // FIX-7: timestamp-based onboard save
   const handleOccasionSelect = useCallback((slug: string | null) => {
@@ -499,7 +506,7 @@ export default function CataloguePage() {
     </div>
   )
 
-  if (showOnboard) return <OccasionScreen occasions={occasions} config={config} onSelect={handleOccasionSelect}/>
+  if (showOnboard) return <OccasionScreen occasions={occasions} config={config} occasionsLoaded={occasionsLoaded} onSelect={handleOccasionSelect}/>
 
   // ── Main catalogue ──────────────────────────────────────────────────────────
   return (

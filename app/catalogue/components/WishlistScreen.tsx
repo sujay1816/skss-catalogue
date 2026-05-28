@@ -78,7 +78,7 @@ export function WishlistScreen({
           <div>
             <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>{emptyTitle}</h2>
             <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}
-               dangerouslySetInnerHTML={{ __html: emptyBody.replace('\n', '<br/>') }}/>
+               style={{ whiteSpace: 'pre-line' }}>{emptyBody}</p>
           </div>
           <button onClick={onClose} style={{ marginTop: 8, padding: '12px 28px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, color: '#F8A3AF', fontSize: 14, cursor: 'pointer' }}>Start browsing</button>
         </div>
