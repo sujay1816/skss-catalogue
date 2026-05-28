@@ -672,12 +672,20 @@ export default function CataloguePage() {
             </div>
           )}
 
+          {/* Undo hint — inline so it pushes the pill down instead of overlapping it */}
+          {undoHintActive && (
+            <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 4, animation: 'floatIn 0.3s ease' }}>
+              <div style={{ background: 'rgba(251,191,36,0.95)', borderRadius: 20, padding: '6px 14px', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+                <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap ↩ to undo that skip</p>
+              </div>
+            </div>
+          )}
+
           {/* FIX-16: WhatsApp pill — animation only on first appearance */}
           {wishlist.length >= 1 && !showWL && !detail && waNum && !isDone && (
             <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 6 }}>
               <button onClick={handleBookCall}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', border: 'none', borderRadius: 28, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 24px rgba(37,211,102,0.45)',
-                  // FIX-16: animate only once when first shown
                   animation: pillShownRef.current ? 'none' : 'pillAppear 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards',
                 }}
                 ref={el => { if (el && !pillShownRef.current) pillShownRef.current = true }}
@@ -691,12 +699,6 @@ export default function CataloguePage() {
           {/* Action buttons */}
           {!isDone && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: '2px 0 20px', position: 'relative' }}>
-              {undoHintActive && (
-                <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, background: 'rgba(251,191,36,0.95)', borderRadius: 20, padding: '6px 14px', whiteSpace: 'nowrap', pointerEvents: 'none', animation: 'floatIn 0.3s ease' }}>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap ↩ to undo that skip</p>
-                </div>
-              )}
-
               {[
                 { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
                 { label: 'Skip', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>, onClick: () => btnSwipe(-1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#F87171', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Skip this saree' },
