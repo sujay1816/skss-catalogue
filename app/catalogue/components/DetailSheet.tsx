@@ -199,24 +199,38 @@ export function DetailSheet({
             <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', marginBottom: 20 }}/>
 
             {/* FIX-9: description with 3-line clamp + show more toggle */}
-            {product.description && (
-              <div style={{ marginBottom: 20 }}>
-                <p style={{
-                  fontSize: 14, lineHeight: 1.75, color: 'rgba(255,255,255,0.55)',
-                  overflow: 'hidden',
-                  display: '-webkit-box',
-                  WebkitBoxOrient: 'vertical',
-                  WebkitLineClamp: descExpanded ? 'unset' : 3,
-                } as React.CSSProperties}>
-                  {product.description}
-                </p>
-                {product.description.length > 300 && (
-                  <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', color: 'var(--gold, #C9A84C)', fontSize: 13, cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
-                    {descExpanded ? 'Show less ↑' : 'Show more ↓'}
-                  </button>
-                )}
-              </div>
-            )}
+            {/* BUG-8 FIX: the old threshold was character-count (>300) but the visual
+                clamp is CSS line-count (-webkit-line-clamp:3). A short description
+                that happens to be >300 chars showed a useless button; a long one
+                that was <300 chars never showed it. We now estimate line count by
+                splitting on newlines plus character-width estimation (~45 chars/line
+                at 14px on a ~300px column). The toggle only appears when the text
+                would actually overflow the 3-line clamp. */}
+            {product.description && (() => {
+              const CHARS_PER_LINE = 45
+              const lineCount = product.description.split('\n').reduce(
+                (acc, line) => acc + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0
+              )
+              const needsToggle = lineCount > 3
+              return (
+                <div style={{ marginBottom: 20 }}>
+                  <p style={{
+                    fontSize: 14, lineHeight: 1.75, color: 'rgba(255,255,255,0.55)',
+                    overflow: 'hidden',
+                    display: '-webkit-box',
+                    WebkitBoxOrient: 'vertical',
+                    WebkitLineClamp: descExpanded ? 'unset' : 3,
+                  } as React.CSSProperties}>
+                    {product.description}
+                  </p>
+                  {needsToggle && (
+                    <button onClick={() => setDescExpanded(e => !e)} style={{ background: 'none', border: 'none', color: 'var(--gold, #C9A84C)', fontSize: 13, cursor: 'pointer', padding: '4px 0', marginTop: 2 }}>
+                      {descExpanded ? 'Show less ↑' : 'Show more ↓'}
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* FIX-1: variant chips — tappable, updates main image, gold border when active */}
             {sortedVars.length > 0 && (

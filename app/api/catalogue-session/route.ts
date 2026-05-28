@@ -22,30 +22,54 @@ export async function POST(request: Request) {
 
   const safeDeviceId = (device_id && device_id !== 'unknown') ? device_id : null
 
-  // If we have no reliable device_id we can't upsert safely (NULL != NULL in SQL
-  // means every call would INSERT a new row). Fall back to a plain insert with phone
-  // as the conflict key so we still capture the session without flooding the table.
-  const upsertKey = safeDeviceId ? 'device_id' : 'phone'
+  // BUG-5 FIX: when safeDeviceId is null we cannot upsert on phone because two
+  // different people can share the same number (family member, in-store demo).
+  // Upserting on phone would silently overwrite the first user's wishlist with
+  // the second user's data. Instead we always INSERT when there is no device_id,
+  // accepting duplicate rows rather than data corruption. The admin view dedupes
+  // by phone + recency when displaying sessions.
+  if (safeDeviceId) {
+    const { data, error } = await supabase
+      .from('catalogue_sessions')
+      .upsert(
+        {
+          name:           name.trim(),
+          phone:          digits.startsWith('91') ? digits : '91' + digits,
+          wishlist:       wishlist ?? [],
+          occasion:       occasion ?? null,
+          device_id:      safeDeviceId,
+          preferred_slot: preferred_slot ?? null,
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: 'device_id', ignoreDuplicates: false }
+      )
+      .select('id')
+      .maybeSingle()
 
+    if (error) {
+      console.error('catalogue_sessions upsert error:', error.message)
+      return NextResponse.json({ id: null, warning: 'session_not_saved' })
+    }
+    return NextResponse.json({ id: data?.id })
+  }
+
+  // No reliable device_id — plain insert to avoid overwriting another user's data.
   const { data, error } = await supabase
     .from('catalogue_sessions')
-    .upsert(
-      {
-        name:           name.trim(),
-        phone:          digits.startsWith('91') ? digits : '91' + digits,
-        wishlist:       wishlist ?? [],
-        occasion:       occasion ?? null,
-        device_id:      safeDeviceId,
-        preferred_slot: preferred_slot ?? null,
-        updated_at:     new Date().toISOString(),
-      },
-      { onConflict: upsertKey, ignoreDuplicates: false }
-    )
+    .insert({
+      name:           name.trim(),
+      phone:          digits.startsWith('91') ? digits : '91' + digits,
+      wishlist:       wishlist ?? [],
+      occasion:       occasion ?? null,
+      device_id:      null,
+      preferred_slot: preferred_slot ?? null,
+      updated_at:     new Date().toISOString(),
+    })
     .select('id')
     .maybeSingle()
 
   if (error) {
-    console.error('catalogue_sessions error:', error.message)
+    console.error('catalogue_sessions insert error:', error.message)
     return NextResponse.json({ id: null, warning: 'session_not_saved' })
   }
 

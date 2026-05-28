@@ -9,6 +9,8 @@ const fmt    = (n: number) => '₹' + n.toLocaleString('en-IN')
 const disc   = (o: number, s: number | null) => (!s || s >= o) ? null : Math.round(((o - s) / o) * 100) + '% off'
 const imgOf  = (p: CatalogueProduct) => (p.images.find(i => i.isPrimary) || p.images[0])?.url || ''
 const priceOf = (p: CatalogueProduct) => p.salePrice ?? p.originalPrice
+// BUG-9 FIX: compute isNew at render-time from createdAt (not from the cached server route)
+const isNewProduct = (p: CatalogueProduct) => (Date.now() - new Date(p.createdAt).getTime()) < 30 * 86400000
 
 // FIX-10: distinct haptic for save vs skip
 // FIX-14: removed bottom hint text (redundant with UX-B button labels)
@@ -187,7 +189,7 @@ export function TinderCard({
         )}
         {flashDisc && <span style={{ background: 'rgba(220,38,38,0.92)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>{flashDisc}% off</span>}
         {!flashPrice && product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(201,168,76,0.55)', color: 'var(--gold, #C9A84C)', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>BESTSELLER</span>}
-        {!flashPrice && product.isNew && !product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(139,26,43,0.55)', color: '#F8A3AF', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>NEW</span>}
+        {!flashPrice && isNewProduct(product) && !product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(139,26,43,0.55)', color: '#F8A3AF', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>NEW</span>}
         {!flashPrice && badge && <span style={{ background: 'rgba(220,38,38,0.9)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>{badge}</span>}
       </div>
 

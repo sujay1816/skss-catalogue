@@ -79,8 +79,14 @@ function scoreProduct(p: CatalogueProduct, weights: { fabrics: Record<string, nu
     const occKey = occ.toLowerCase()
     if (weights.occasions[occKey]) score += weights.occasions[occKey] * 2
   }
-  const avgPrice = (weights.maxPrice + weights.minPrice) / 2 || 0
-  if (avgPrice > 0) {
+  // BUG-4 FIX: minPrice is initialised to Infinity; only compute price score when
+  // both bounds are finite real numbers. If either bound is Infinity, avgPrice
+  // would be Infinity and dist would be NaN, silently zeroing the score for every
+  // product. The isFinite guard ensures we only score price affinity once at least
+  // one right-swipe has been recorded and both bounds are valid numbers.
+  const { maxPrice, minPrice } = weights
+  if (isFinite(minPrice) && isFinite(maxPrice) && maxPrice > 0) {
+    const avgPrice = (maxPrice + minPrice) / 2
     const dist = Math.abs(priceOf(p) - avgPrice) / Math.max(avgPrice, 1)
     score += Math.max(0, 1 - dist)
   }
@@ -123,12 +129,19 @@ export default function CataloguePage() {
   const stackRef          = useRef<HTMLDivElement>(null)
   const labelsShownRef    = useRef(false)
   const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
-  const currentIdxRef     = useRef(0)      // FIX-2+3: stable idx for loadMore's rerankDeck call
+  const currentIdxRef      = useRef(0)      // FIX-2+3: stable idx for loadMore's rerankDeck call
+  const productsRef = useRef<CatalogueProduct[]>([]) // BUG-3 FIX: always-current deck for swipe()
   const wishlistMountedRef = useRef(false) // guard: skip sync on initial localStorage hydration
+  // BUG-7 FIX: keep a ref so handleCaptureSubmit can read the current wishlist
+  // without including it in its useCallback deps. This prevents PhoneCaptureSheet
+  // from re-rendering every time the wishlist changes while the sheet is open.
+  const wishlistRef = useRef<WishlistItem[]>([])
 
-  // FIX-4: affinity weights updated on each right-swipe
+  // FIX-4: affinity weights updated on each right-swipe.
+  // BUG-4 FIX: minPrice was Infinity; initialised to 0 so isFinite() always
+  // holds true for the zero state and no NaN leaks into scoreProduct.
   const affinityRef = useRef<{ fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }>({
-    fabrics: {}, occasions: {}, maxPrice: 0, minPrice: Infinity,
+    fabrics: {}, occasions: {}, maxPrice: 0, minPrice: 0,
   })
 
   const [allProducts,    setAllProducts]    = useState<CatalogueProduct[]>([])
@@ -145,7 +158,7 @@ export default function CataloguePage() {
   const [seenIds,        setSeenIds]        = useState<Set<string>>(new Set())
   const [detail,         setDetail]         = useState<CatalogueProduct | null>(null)
   const [showWL,         setShowWL]         = useState(false)
-  const [undoSkip,       setUndoSkip]       = useState<{ p: CatalogueProduct; t: ReturnType<typeof setTimeout> } | null>(null)
+  const [undoSkip,       setUndoSkip]       = useState<{ p: CatalogueProduct; idx: number; t: ReturnType<typeof setTimeout> } | null>(null)
   const [undoRm,         setUndoRm]         = useState<{ it: WishlistItem; t: ReturnType<typeof setTimeout> } | null>(null)
   const [dragProg,       setDragProg]       = useState(0)
   const [showCapture,    setShowCapture]    = useState(false)
@@ -225,6 +238,10 @@ export default function CataloguePage() {
 
   useEffect(() => { setIdx(0); setRankedProducts([]) }, [catFilter, budgetIdx, occasionFilter])  // FIX-5: clear ranked order on filter change
   useEffect(() => { currentIdxRef.current = idx }, [idx])  // FIX-2+3: keep ref in sync
+  // BUG-3 FIX: keep refs to the latest products/filteredProducts so swipe()'s
+  // useCallback closure never reads a stale snapshot.
+  useEffect(() => { productsRef.current = products }, [products])
+  useEffect(() => { filteredProductsRef.current = filteredProducts }, [filteredProducts])
 
   useEffect(() => {
     if (!loading) return
@@ -301,6 +318,7 @@ export default function CataloguePage() {
 
   useEffect(() => {
     try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {}
+    wishlistRef.current = wishlist  // BUG-7 FIX: keep ref in sync
   }, [wishlist])
 
   useEffect(() => {
@@ -332,7 +350,9 @@ export default function CataloguePage() {
   }, [wishlist, undoRm])
 
   const swipe = useCallback((dir: 1 | -1) => {
-    const p = products[idx]; if (!p) return
+    // BUG-3 FIX: read products and idx from refs so this callback never closes
+    // over stale state values regardless of when React re-creates it.
+    const p = productsRef.current[currentIdxRef.current]; if (!p) return
     if (dir === 1) {
       save(p)
       if (undoSkip) { clearTimeout(undoSkip.t); setUndoSkip(null) }
@@ -349,9 +369,16 @@ export default function CataloguePage() {
       }
       const price = priceOf(p)
       aff.maxPrice = Math.max(aff.maxPrice, price)
-      aff.minPrice = Math.min(aff.minPrice === Infinity ? price : aff.minPrice, price)
+      // BUG-4 FIX: minPrice is 0-initialised so we only update it when price is
+      // meaningful (>0). No Infinity special-casing needed.
+      aff.minPrice = aff.minPrice === 0 ? price : Math.min(aff.minPrice, price)
       const rightSwipes = Object.values(aff.fabrics).reduce((a, b) => a + b, 0)
-      if (rightSwipes % 3 === 0) rerankDeck(filteredProducts, idx)
+      // BUG-3 FIX: use refs instead of closure-captured idx / filteredProducts so
+      // rerankDeck always receives the values from the current render, not the
+      // render that created this callback. idx is read from currentIdxRef (already
+      // incremented by the setIdx call later in this function via the useEffect
+      // sync) and filteredProducts from filteredProductsRef.
+      if (rightSwipes % 3 === 0) rerankDeck(filteredProductsRef.current, currentIdxRef.current)
 
       // FIX-10: double-pulse haptic for save
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([10, 50, 10])
@@ -363,7 +390,11 @@ export default function CataloguePage() {
         setTimeout(() => setUndoHintActive(false), 2500)
       }
       if (undoSkip) clearTimeout(undoSkip.t)
-      setUndoSkip({ p, t: setTimeout(() => setUndoSkip(null), UNDO_MS) })
+      // BUG-1 FIX: store the exact idx at the time of skip so undo can restore
+      // it precisely. A blind i-1 decrement was wrong at idx=0 and could show
+      // the wrong card when rankedProducts changed between skip and undo.
+      const skippedIdx = currentIdxRef.current
+      setUndoSkip({ p, idx: skippedIdx, t: setTimeout(() => setUndoSkip(null), UNDO_MS) })
     }
     setSeenIds(prev => new Set([...prev, p.id]))
     // FIX-13: truncate product name in toast
@@ -372,27 +403,39 @@ export default function CataloguePage() {
       setSavedToast(name); setTimeout(() => setSavedToast(''), 1800)
     }
     setDragProg(0); setIdx(i => i + 1)
-  }, [products, idx, save, undoSkip, undoHintShown, rerankDeck, filteredProducts])
+  }, [products, save, undoSkip, undoHintShown, rerankDeck])
 
   // FIX-4: always show the capture sheet so returning users can pick a slot.
   // PhoneCaptureSheet pre-fills name/phone from localStorage so it is not extra friction.
+  // BUG-6 FIX: when waNum is not configured show a visible error toast instead of
+  // silently doing nothing — the empty-wishlist case still returns early (no items
+  // to share) but the missing-number case now gives the user actionable feedback.
   const handleBookCall = useCallback(() => {
-    if (wishlist.length === 0 || !waNum) return
+    if (wishlist.length === 0) return
+    if (!waNum) {
+      setSavedToast('WhatsApp not configured — contact the shop directly')
+      setTimeout(() => setSavedToast(''), 3000)
+      return
+    }
     setShowCapture(true)
   }, [wishlist, waNum])
 
   // FIX-3: slot param added, saved to session + injected into WA message
+  // BUG-7 FIX: read wishlist from wishlistRef so this callback's identity is
+  // stable — it no longer re-creates on every wishlist change, preventing
+  // PhoneCaptureSheet from re-rendering needlessly while the sheet is open.
   const handleCaptureSubmit = useCallback((name: string, phone: string, slot?: string) => {
     const digits      = phone.replace(/\D/g, '')
     const storedPhone = digits.startsWith('91') ? digits : `91${digits}`
     localStorage.setItem('skss_customer_name', name)
     localStorage.setItem('skss_customer_phone', storedPhone)
+    const currentWishlist = wishlistRef.current
     fetch('/api/catalogue-session', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone: storedPhone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
+      body: JSON.stringify({ name, phone: storedPhone, wishlist: currentWishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
     }).catch(() => {})
-    window.open(buildWA(wishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot), '_blank', 'noopener,noreferrer')
-  }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
+    window.open(buildWA(currentWishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot), '_blank', 'noopener,noreferrer')
+  }, [waNum, occasionFilter, config.catalogue_wa_message_template])
 
   const btnSwipe = useCallback((dir: 1 | -1) => {
     const el = stackRef.current?.querySelector<HTMLElement>('[data-top-card]')
@@ -483,7 +526,8 @@ export default function CataloguePage() {
       else if (e.key === 'Enter' && products[idx]) setDetail(products[idx])
       else if (e.key === 'Escape')    { setDetail(null); setShowWL(false) }
       else if ((e.key === 'z' || e.key === 'Z') && undoSkip) {
-        clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null)
+        // BUG-1 FIX: restore the exact saved idx and remove the product from seenIds
+        clearTimeout(undoSkip.t); setIdx(undoSkip.idx); setSeenIds(prev => { const next = new Set(prev); next.delete(undoSkip.p.id); return next }); setUndoSkip(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -692,7 +736,7 @@ export default function CataloguePage() {
           {!isDone && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: '2px 0 calc(20px + env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
               {[
-                { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
+                { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(undoSkip.idx); setSeenIds(prev => { const next = new Set(prev); next.delete(undoSkip.p.id); return next }); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
                 { label: 'Skip', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>, onClick: () => btnSwipe(-1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#F87171', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Skip this saree' },
                 { label: 'Save', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>, onClick: () => btnSwipe(1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#4ade80', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Save to shortlist' },
                 { label: 'Details', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>, onClick: () => products[idx] && setDetail(products[idx]), disabled: false, size: 46, style: { background: 'rgba(139,26,43,0.12)', border: '1.5px solid rgba(139,26,43,0.35)', color: '#F87171' }, ariaLabel: 'View saree details' },

@@ -82,7 +82,13 @@ export async function GET(request: Request) {
       discountPercent: r.discount_percent || null,
       gstRate: r.gst_rate || 5,
       images, variants, totalStock, isFeatured: r.is_featured || false,
-      isBestseller: r.is_bestseller || false, isNew,
+      isBestseller: r.is_bestseller || false,
+      // BUG-9 FIX: computing isNew with Date.now() inside a cached route (revalidate=60)
+      // means the badge could show or hide up to 60 s after the 30-day boundary — the
+      // same stale value is served to every client until the cache refreshes. Pass the
+      // raw createdAt ISO string to the client and let it compute isNew at render-time
+      // with its own clock, so the flag is always accurate to the second.
+      createdAt: r.created_at,
       averageRating: r.average_rating || 0,
       reviewCount: r.review_count || 0,
       videoUrl: r.video_url || null,

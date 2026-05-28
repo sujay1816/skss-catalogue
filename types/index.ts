@@ -38,7 +38,10 @@ export interface CatalogueProduct {
   totalStock: number
   isFeatured: boolean
   isBestseller: boolean
-  isNew: boolean
+  // BUG-9 FIX: isNew was computed server-side inside a cached route (revalidate=60),
+  // meaning the badge could lag up to 60 s at the 30-day boundary. We now ship
+  // createdAt as a raw ISO string so each client computes isNew at render-time.
+  createdAt: string
   averageRating: number
   reviewCount: number
   videoUrl: string | null
