@@ -10,10 +10,9 @@ const disc   = (o: number, s: number | null) => (!s || s >= o) ? null : Math.rou
 const imgOf  = (p: CatalogueProduct) => (p.images.find(i => i.isPrimary) || p.images[0])?.url || ''
 const priceOf = (p: CatalogueProduct) => p.salePrice ?? p.originalPrice
 
-// UX-J: small heart on card to save directly without opening detail
-// UX-F: isLoved prop to show already-saved indicator on card
-// UX-A: LIKED/NOPE stamps now flash on button-swipe too (via showStamp prop)
-// B-3: onPointerCancel on image prevents stuck imgSwipe flag
+// FIX-10: distinct haptic for save vs skip
+// FIX-14: removed bottom hint text (redundant with UX-B button labels)
+// FIX-15: CSS variables for brand colours
 export function TinderCard({
   product, stackIndex, isTop, dragProgress,
   onSwipe, onTap, onDragProgress, cardW, cardH,
@@ -31,8 +30,8 @@ export function TinderCard({
   flashSale: FlashSale
   wasSeen: boolean
   isFirstCard: boolean
-  isLoved: boolean       // UX-F
-  onToggleSave: () => void  // UX-J
+  isLoved: boolean
+  onToggleSave: () => void
 }) {
   const ref       = useRef<HTMLDivElement>(null)
   const drag      = useRef({ on: false, x0: 0, y0: 0, dx: 0, dy: 0, t0: 0 })
@@ -42,9 +41,8 @@ export function TinderCard({
 
   const scale     = 1 - stackIndex * 0.05
   const shiftY    = stackIndex * 14
-  const threshold = cardW * 0.25   // SW-4
+  const threshold = cardW * 0.25
 
-  // SW-5: back-card eased response
   useEffect(() => {
     const el = ref.current
     if (!el || isTop) return
@@ -54,7 +52,6 @@ export function TinderCard({
     el.style.transition = 'transform 0.08s ease'
   }, [isTop, dragProgress, scale, shiftY])
 
-  // UX-01: idle hint
   useEffect(() => {
     if (!isTop || !isFirstCard || !ref.current) return
     hintTimer.current = setTimeout(() => {
@@ -166,10 +163,8 @@ export function TinderCard({
         : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, background: 'linear-gradient(145deg,#2D1B1B,#1A0D0D)' }}>🥻</div>
       }
 
-      {/* gradient overlay */}
       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.05) 65%, transparent 100%)', pointerEvents: 'none' }}/>
 
-      {/* UX-11: edge tints */}
       {isTop && (
         <>
           <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 48, background: 'linear-gradient(to right, rgba(248,113,113,0.12), transparent)', pointerEvents: 'none', borderRadius: '16px 0 0 16px' }}/>
@@ -177,33 +172,37 @@ export function TinderCard({
         </>
       )}
 
-      {/* LIKED / NOPE stamps */}
       <div className="s-like" style={{ position: 'absolute', top: 36, left: 24, opacity: 0, pointerEvents: 'none', border: '3px solid #4ade80', borderRadius: 6, padding: '6px 18px', color: '#4ade80', fontSize: 22, fontWeight: 800, letterSpacing: 3, transform: 'rotate(-15deg)' }}>LIKED</div>
       <div className="s-nope" style={{ position: 'absolute', top: 36, right: 24, opacity: 0, pointerEvents: 'none', border: '3px solid #f87171', borderRadius: 6, padding: '6px 18px', color: '#f87171', fontSize: 22, fontWeight: 800, letterSpacing: 3, transform: 'rotate(15deg)' }}>NOPE</div>
 
-      {/* UX-03: seen badge */}
       {wasSeen && (
         <div style={{ position: 'absolute', top: 14, left: 14, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', borderRadius: 20, padding: '3px 10px' }}>
           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, fontWeight: 600, textTransform: 'uppercase' }}>Seen</span>
         </div>
       )}
 
-      {/* top-right badges */}
       <div style={{ position: 'absolute', top: 14, right: 14, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
         {flashPrice && flashSale && (
           <span style={{ background: 'rgba(220,38,38,0.92)', backdropFilter: 'blur(8px)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>⏱ <Countdown endsAt={flashSale.ends_at}/></span>
         )}
         {flashDisc && <span style={{ background: 'rgba(220,38,38,0.92)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>{flashDisc}% off</span>}
-        {!flashPrice && product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(201,168,76,0.55)', color: '#C9A84C', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>BESTSELLER</span>}
+        {!flashPrice && product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(201,168,76,0.55)', color: 'var(--gold, #C9A84C)', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>BESTSELLER</span>}
         {!flashPrice && product.isNew && !product.isBestseller && <span style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(139,26,43,0.55)', color: '#F8A3AF', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>NEW</span>}
         {!flashPrice && badge && <span style={{ background: 'rgba(220,38,38,0.9)', color: '#fff', borderRadius: 20, padding: '3px 10px', fontSize: 10, fontWeight: 700 }}>{badge}</span>}
       </div>
 
-      {/* UX-J: heart button on card + UX-F: filled if already saved */}
+      {/* FIX-10: heart button with distinct save haptic */}
       {isTop && (
         <button
           onPointerDown={e => e.stopPropagation()}
-          onClick={e => { e.stopPropagation(); onToggleSave() }}
+          onClick={e => {
+            e.stopPropagation()
+            // FIX-10: double-pulse for save, single for remove
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              navigator.vibrate(isLoved ? 10 : [8, 30, 8])
+            }
+            onToggleSave()
+          }}
           style={{ position: 'absolute', bottom: 64, right: 16, width: 36, height: 36, borderRadius: '50%', background: isLoved ? 'rgba(139,26,43,0.7)' : 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', border: isLoved ? '1.5px solid rgba(248,113,113,0.6)' : '1.5px solid rgba(255,255,255,0.2)', color: isLoved ? '#F87171' : 'rgba(255,255,255,0.7)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
           aria-label={isLoved ? 'Remove from shortlist' : 'Save to shortlist'}
         >
@@ -211,7 +210,7 @@ export function TinderCard({
         </button>
       )}
 
-      {/* bottom info */}
+      {/* bottom info — FIX-14: hint text removed */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
         <p style={{ fontFamily: 'var(--font-heading)', fontSize: 26, fontWeight: 500, color: '#fff', lineHeight: 1.1, marginBottom: 4, textShadow: '0 2px 10px rgba(0,0,0,0.7)' }}>{product.name}</p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -220,13 +219,13 @@ export function TinderCard({
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <span style={{ fontSize: 24, fontWeight: 700, color: flashPrice ? '#f87171' : '#C9A84C' }}>{fmt(flashPrice ?? priceOf(product))}</span>
+            <span style={{ fontSize: 24, fontWeight: 700, color: flashPrice ? '#f87171' : 'var(--gold, #C9A84C)' }}>{fmt(flashPrice ?? priceOf(product))}</span>
             {(flashPrice || product.salePrice) && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through', marginLeft: 8 }}>{fmt(product.originalPrice)}</span>}
           </div>
           {sortedVars.length > 0 && (
             <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
               {sortedVars.slice(0, 5).map(v => (
-                <div key={v.id} style={{ width: 14, height: 14, borderRadius: '50%', background: v.colourHex || '#8B1A2B', border: '2px solid rgba(255,255,255,0.5)', boxShadow: '0 1px 4px rgba(0,0,0,0.6)', opacity: v.stock === 0 ? 0.3 : 1, position: 'relative' }}>
+                <div key={v.id} style={{ width: 14, height: 14, borderRadius: '50%', background: v.colourHex || 'var(--crimson, #8B1A2B)', border: '2px solid rgba(255,255,255,0.5)', boxShadow: '0 1px 4px rgba(0,0,0,0.6)', opacity: v.stock === 0 ? 0.3 : 1, position: 'relative' }}>
                   {v.stock === 0 && <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ width: '150%', height: 1.5, background: 'rgba(255,255,255,0.7)', transform: 'rotate(-45deg)' }}/></div>}
                 </div>
               ))}
@@ -234,11 +233,6 @@ export function TinderCard({
             </div>
           )}
         </div>
-        {isTop && (
-          <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.28)', marginTop: 7, textAlign: 'center', letterSpacing: 0.5 }}>
-            ← skip · swipe right to save · swipe up for details →
-          </p>
-        )}
       </div>
     </div>
   )

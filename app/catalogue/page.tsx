@@ -13,6 +13,7 @@ import { PhoneCaptureSheet } from './components/PhoneCaptureSheet'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const UNDO_MS = 3500
+const ONBOARD_EXPIRY_DAYS = 30   // FIX-7: expiry for onboarding
 const BUDGETS = [
   { label: 'All',        min: 0,     max: Infinity },
   { label: 'Under ₹10K', min: 0,     max: 9999     },
@@ -39,29 +40,71 @@ function getDeviceId(): string {
   } catch { return 'unknown' }
 }
 
-function buildWA(items: WishlistItem[], waNum: string, customerName?: string, occasion?: string | null, template?: string) {
+// FIX-7: timestamp-based onboard check (30-day expiry)
+function shouldShowOnboard(): boolean {
+  try {
+    const ts = localStorage.getItem('skss_onboarded_at')
+    if (!ts) return true
+    const age = Date.now() - parseInt(ts, 10)
+    return age > ONBOARD_EXPIRY_DAYS * 86400000
+  } catch { return true }
+}
+
+// FIX-3: slot injected into WA message
+function buildWA(items: WishlistItem[], waNum: string, customerName?: string, occasion?: string | null, template?: string, slot?: string) {
   const total    = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
   const list     = items.map((it, i) => `${i + 1}. ${it.name} — ${fmt(it.salePrice ?? it.originalPrice)}`).join('\n')
   const greeting = customerName ? `Hi, I'm ${customerName}.` : 'Hi!'
   const occLine  = occasion ? `\nShopping for: ${occasion}` : ''
+  const slotLine = slot ? `\nPreferred call time: ${slot}` : ''
   const msg = template
     ? template
         .replace('{greeting}', greeting)
         .replace('{occLine}', occLine)
         .replace('{list}', list)
         .replace('{total}', fmt(total))
-    : `${greeting}${occLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`
+    : `${greeting}${occLine}${slotLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`
   return `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`
 }
 
-// ─── Skeleton card — V-5 ──────────────────────────────────────────────────────
+// FIX-4: tag-weight scoring for deck personalisation
+function scoreProduct(p: CatalogueProduct, weights: { fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }): number {
+  let score = 0
+  if (weights.fabrics[p.fabric]) score += weights.fabrics[p.fabric] * 3
+  for (const occ of p.occasion || []) {
+    if (weights.occasions[occ]) score += weights.occasions[occ] * 2
+  }
+  // price affinity: reward products near the user's typical price
+  const avgPrice = (weights.maxPrice + weights.minPrice) / 2 || 0
+  if (avgPrice > 0) {
+    const dist = Math.abs(priceOf(p) - avgPrice) / Math.max(avgPrice, 1)
+    score += Math.max(0, 1 - dist)
+  }
+  return score
+}
+
+// FIX-2: fetch with AbortController timeout
+async function fetchWithTimeout(url: string, ms = 10000): Promise<Response> {
+  const ctrl = new AbortController()
+  const id   = setTimeout(() => ctrl.abort(), ms)
+  try {
+    const res = await fetch(url, { signal: ctrl.signal })
+    clearTimeout(id)
+    return res
+  } catch (e) {
+    clearTimeout(id)
+    throw e
+  }
+}
+
+// ─── Skeleton card ─────────────────────────────────────────────────────────────
 function SkeletonCard({ w, h }: { w: number; h: number }) {
   return (
     <div style={{ position: 'absolute', width: w, height: h, borderRadius: 16, overflow: 'hidden', background: '#1a1008' }}>
       <style>{`@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}`}</style>
       <div style={{ width: '100%', height: '100%', background: 'linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.07) 50%, rgba(255,255,255,0.03) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.6s infinite' }}/>
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0 20px 20px' }}>
-        <div style={{ height: 28, width: '65%', background: 'rgba(255,255,255,0.06)', borderRadius: 6, marginBottom: 10, backgroundSize: '200% 100%', animation: 'shimmer 1.6s infinite' }}/>
+        <div style={{ height: 28, width: '65%', background: 'rgba(255,255,255,0.06)', borderRadius: 6, marginBottom: 10 }}/>
         <div style={{ height: 16, width: '40%', background: 'rgba(255,255,255,0.04)', borderRadius: 4, marginBottom: 10 }}/>
         <div style={{ height: 24, width: '30%', background: 'rgba(201,168,76,0.15)', borderRadius: 4 }}/>
       </div>
@@ -69,13 +112,19 @@ function SkeletonCard({ w, h }: { w: number; h: number }) {
   )
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function CataloguePage() {
   const pendingSavedRef   = useRef<string[] | null>(null)
   const longPressRef      = useRef<number>(0)
   const syncTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stackRef          = useRef<HTMLDivElement>(null)
-  const labelsShownRef    = useRef(false) // UX-B: one-time button labels
+  const labelsShownRef    = useRef(false)
+  const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
+
+  // FIX-4: affinity weights updated on each right-swipe
+  const affinityRef = useRef<{ fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }>({
+    fabrics: {}, occasions: {}, maxPrice: 0, minPrice: Infinity,
+  })
 
   const [allProducts,    setAllProducts]    = useState<CatalogueProduct[]>([])
   const [config,         setConfig]         = useState<SiteConfig>({})
@@ -84,9 +133,7 @@ export default function CataloguePage() {
   const [loading,        setLoading]        = useState(true)
   const [slowLoad,       setSlowLoad]       = useState(false)
   const [loadError,      setLoadError]      = useState(false)
-  const [showOnboard,    setShowOnboard]    = useState(() => {
-    try { return !localStorage.getItem('skss_onboarded') } catch { return true }
-  })
+  const [showOnboard,    setShowOnboard]    = useState(shouldShowOnboard)  // FIX-7
   const [idx,            setIdx]            = useState(0)
   const [wishlist,       setWishlist]       = useState<WishlistItem[]>([])
   const [seenIds,        setSeenIds]        = useState<Set<string>>(new Set())
@@ -100,14 +147,16 @@ export default function CataloguePage() {
   const [sharedToast,    setSharedToast]    = useState('')
   const [undoHintShown,  setUndoHintShown]  = useState(false)
   const [undoHintActive, setUndoHintActive] = useState(false)
-  const [showBtnLabels,  setShowBtnLabels]  = useState(true) // UX-B
+  const [showBtnLabels,  setShowBtnLabels]  = useState(true)
   const [totalProducts,  setTotalProducts]  = useState(0)
   const [loadingMore,    setLoadingMore]    = useState(false)
   const [catFilter,      setCatFilter]      = useState('All')
   const [budgetIdx,      setBudgetIdx]      = useState(0)
   const [occasionFilter, setOccasionFilter] = useState<string | null>(null)
-  const [showMoreCats,   setShowMoreCats]   = useState(false) // UX-E
+  const [showMoreCats,   setShowMoreCats]   = useState(false)
   const [dims,           setDims]           = useState({ w: 340, h: 520 })
+  // FIX-4: ranked product deck
+  const [rankedProducts, setRankedProducts] = useState<CatalogueProduct[]>([])
 
   const waNum    = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || config.whatsapp_number || ''
   const brandCss = [
@@ -116,21 +165,36 @@ export default function CataloguePage() {
   ].filter(Boolean).join(';')
 
   const categories = ['All', ...Array.from(new Set(allProducts.map(p => p.categoryName).filter(Boolean)))]
-  const products   = allProducts.filter(p => {
+
+  // Base filter (category + budget + occasion)
+  const filteredProducts = allProducts.filter(p => {
     const catOk    = catFilter === 'All' || p.categoryName === catFilter
     const b        = BUDGETS[budgetIdx]
     const price    = priceOf(p)
     const budgetOk = price >= b.min && price <= b.max
-    // B-5 FIX: only apply occasion filter if at least one product has this occasion
     const occOk    = !occasionFilter || (p.occasion || []).includes(occasionFilter)
     return catOk && budgetOk && occOk
   })
+
+  // FIX-4: use ranked deck when affinity is built, otherwise use filtered order
+  const products = rankedProducts.length > 0
+    ? rankedProducts.filter(p => filteredProducts.some(fp => fp.id === p.id))
+    : filteredProducts
 
   const stack       = products.slice(idx, idx + 3)
   const isDone      = !loading && idx >= products.length
   const canLoadMore = isDone && allProducts.length < totalProducts && products.length === allProducts.length
 
-  // Card dimensions — V-2: use safe-area-inset-top
+  // FIX-4: re-rank the unseen portion of the deck after every 3rd right-swipe
+  const rerankDeck = useCallback((all: CatalogueProduct[]) => {
+    const aff = affinityRef.current
+    const hasAffinity = Object.keys(aff.fabrics).length > 0 || Object.keys(aff.occasions).length > 0
+    if (!hasAffinity) { setRankedProducts([]); return }
+    const sorted = [...all].sort((a, b) => scoreProduct(b, aff) - scoreProduct(a, aff))
+    setRankedProducts(sorted)
+  }, [])
+
+  // Card dimensions
   useEffect(() => {
     const calc = () => {
       const safeTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat') || '0', 10) || 0
@@ -152,7 +216,6 @@ export default function CataloguePage() {
     return () => clearTimeout(t)
   }, [loading])
 
-  // UX-B: hide button labels after first swipe
   useEffect(() => {
     if (!labelsShownRef.current && idx > 0) {
       labelsShownRef.current = true
@@ -161,20 +224,38 @@ export default function CataloguePage() {
     }
   }, [idx])
 
+  // FIX-2 + FIX-6: two-wave fetch — config/occasions first, products second
   useEffect(() => {
-    Promise.all([
-      fetch('/api/products?limit=80').then(r => r.json()),
-      fetch('/api/config').then(r => r.json()).catch(() => ({})),
-      fetch('/api/occasions').then(r => r.json()).catch(() => []),
-      fetch('/api/flash-sales').then(r => r.json()).catch(() => null),
-    ]).then(([pd, cfg, occ, flash]) => {
-      setAllProducts(pd.products || [])
-      setTotalProducts(pd.total || 0)
-      setConfig(cfg || {})
-      setOccasions(occ || [])
-      setFlashSale(flash || null)
+    let cancelled = false
+
+    // Wave 1: config + occasions (fast) → renders occasion screen immediately
+    Promise.allSettled([
+      fetchWithTimeout('/api/config').then(r => r.json()).catch(() => ({})),
+      fetchWithTimeout('/api/occasions').then(r => r.json()).catch(() => []),
+    ]).then(([cfgRes, occRes]) => {
+      if (cancelled) return
+      if (cfgRes.status === 'fulfilled') setConfig(cfgRes.value || {})
+      if (occRes.status === 'fulfilled') setOccasions(occRes.value || [])
+    })
+
+    // Wave 2: products + flash-sales (heavier) — updates deck once ready
+    Promise.allSettled([
+      fetchWithTimeout('/api/products?limit=80').then(r => r.json()),
+      fetchWithTimeout('/api/flash-sales').then(r => r.json()).catch(() => null),
+    ]).then(([pdRes, flashRes]) => {
+      if (cancelled) return
+      if (pdRes.status === 'fulfilled') {
+        const pd = pdRes.value
+        setAllProducts(pd.products || [])
+        setTotalProducts(pd.total || 0)
+      } else {
+        setLoadError(true)
+      }
+      if (flashRes.status === 'fulfilled') setFlashSale(flashRes.value || null)
       setLoading(false)
-    }).catch(() => { setLoading(false); setLoadError(true) })
+    })
+
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -236,7 +317,22 @@ export default function CataloguePage() {
     if (dir === 1) {
       save(p)
       if (undoSkip) { clearTimeout(undoSkip.t); setUndoSkip(null) }
+
+      // FIX-4: update affinity weights, re-rank every 3rd right-swipe
+      const aff = affinityRef.current
+      if (p.fabric) aff.fabrics[p.fabric] = (aff.fabrics[p.fabric] || 0) + 1
+      for (const occ of p.occasion || []) aff.occasions[occ] = (aff.occasions[occ] || 0) + 1
+      const price = priceOf(p)
+      aff.maxPrice = Math.max(aff.maxPrice, price)
+      aff.minPrice = Math.min(aff.minPrice === Infinity ? price : aff.minPrice, price)
+      const rightSwipes = Object.values(aff.fabrics).reduce((a, b) => a + b, 0)
+      if (rightSwipes % 3 === 0) rerankDeck(allProducts)
+
+      // FIX-10: double-pulse haptic for save
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([10, 50, 10])
     } else {
+      // FIX-10: single pulse for skip
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
       if (!undoHintShown) {
         setUndoHintShown(true); setUndoHintActive(true)
         setTimeout(() => setUndoHintActive(false), 2500)
@@ -245,11 +341,15 @@ export default function CataloguePage() {
       setUndoSkip({ p, t: setTimeout(() => setUndoSkip(null), UNDO_MS) })
     }
     setSeenIds(prev => new Set([...prev, p.id]))
-    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
-    if (dir === 1) { setSavedToast(p.name); setTimeout(() => setSavedToast(''), 1800) }
+    // FIX-13: truncate product name in toast
+    if (dir === 1) {
+      const name = p.name.length > 28 ? p.name.slice(0, 28) + '…' : p.name
+      setSavedToast(name); setTimeout(() => setSavedToast(''), 1800)
+    }
     setDragProg(0); setIdx(i => i + 1)
-  }, [products, idx, save, undoSkip, undoHintShown])
+  }, [products, idx, save, undoSkip, undoHintShown, rerankDeck, allProducts])
 
+  // FIX-3: slot passed through to buildWA
   const handleBookCall = useCallback(() => {
     if (wishlist.length === 0 || !waNum) return
     const savedName = localStorage.getItem('skss_customer_name')
@@ -258,18 +358,18 @@ export default function CataloguePage() {
     } else setShowCapture(true)
   }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
 
-  const handleCaptureSubmit = useCallback((name: string, phone: string) => {
+  // FIX-3: slot param added, saved to session + injected into WA message
+  const handleCaptureSubmit = useCallback((name: string, phone: string, slot?: string) => {
     const storedPhone = phone.startsWith('91') ? phone : `91${phone}`
     localStorage.setItem('skss_customer_name', name)
     localStorage.setItem('skss_customer_phone', storedPhone)
     fetch('/api/catalogue-session', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null }),
+      body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
     }).catch(() => {})
-    window.open(buildWA(wishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template), '_blank', 'noopener,noreferrer')
+    window.open(buildWA(wishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot), '_blank', 'noopener,noreferrer')
   }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
 
-  // UX-A: button-swipe now flashes stamp before animating card off
   const btnSwipe = useCallback((dir: 1 | -1) => {
     const el = stackRef.current?.querySelector<HTMLElement>('[data-top-card]')
     if (el) {
@@ -288,19 +388,21 @@ export default function CataloguePage() {
     if (loadingMore || allProducts.length >= totalProducts) return
     setLoadingMore(true)
     try {
-      const res = await fetch(`/api/products?limit=40&offset=${allProducts.length}`)
+      const res = await fetchWithTimeout(`/api/products?limit=40&offset=${allProducts.length}`)
       const pd  = await res.json()
       if (pd.products?.length > 0) {
         setAllProducts(prev => {
           const ids = new Set(prev.map(p => p.id))
-          return [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
+          const merged = [...prev, ...pd.products.filter((p: CatalogueProduct) => !ids.has(p.id))]
+          rerankDeck(merged)
+          return merged
         })
       }
     } catch {}
     setLoadingMore(false)
-  }, [loadingMore, allProducts.length, totalProducts])
+  }, [loadingMore, allProducts.length, totalProducts, rerankDeck])
 
-  // B-5 FIX: validate that occasion filter actually matches products; silently clear if not
+  // FIX-7: timestamp-based onboard save
   const handleOccasionSelect = useCallback((slug: string | null) => {
     if (slug) {
       const matchingOcc = occasions.find(o => o.slug === slug)
@@ -317,17 +419,16 @@ export default function CataloguePage() {
             setOccasionFilter(match)
             try { localStorage.setItem('skss_occasion', match) } catch {}
           }
-          // B-5: if still no match, don't set the filter — don't pollute localStorage
         }
       }
     } else {
       try { localStorage.removeItem('skss_occasion') } catch {}
     }
-    try { localStorage.setItem('skss_onboarded', '1') } catch {}
+    // FIX-7: store timestamp instead of boolean
+    try { localStorage.setItem('skss_onboarded_at', String(Date.now())) } catch {}
     setShowOnboard(false)
   }, [occasions, allProducts])
 
-  // UX-C: open detail from wishlist
   const openDetailById = useCallback((id: string) => {
     const p = allProducts.find(x => x.id === id)
     if (p) { setShowWL(false); setTimeout(() => setDetail(p), 50) }
@@ -348,7 +449,6 @@ export default function CataloguePage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [btnSwipe, detail, showWL, showCapture, showOnboard, products, idx, undoSkip])
 
-  // ── V-2: inject --sat CSS variable so safe-area calc works ───────────────
   const safeAreaStyle = `
     :root { --sat: env(safe-area-inset-top, 0px); }
     * { box-sizing: border-box; }
@@ -356,19 +456,20 @@ export default function CataloguePage() {
     @keyframes floatIn{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
     @keyframes pulse{0%,80%,100%{opacity:0.3;transform:scale(0.8)}40%{opacity:1;transform:scale(1)}}
     @keyframes btnLabelFade{0%,70%{opacity:1}100%{opacity:0}}
+    @keyframes pillAppear{from{opacity:0;transform:translateX(-50%) translateY(12px) scale(0.9)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
   `
 
-  // ── Render: error ─────────────────────────────────────────────────────────
+  // ── Error ──────────────────────────────────────────────────────────────────
   if (loadError) return (
     <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 32, textAlign: 'center' }}>
       {config.logo_url ? <img src={config.logo_url} alt="logo" style={{ width: 52, height: 52, objectFit: 'contain', opacity: 0.7 }}/> : <svg width="44" height="44" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.4)" strokeWidth="1"/><line x1="10" y1="10" x2="24" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/><line x1="24" y1="10" x2="10" y2="24" stroke="#f87171" strokeWidth="2" strokeLinecap="round"/></svg>}
       <p style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>Couldn&apos;t load the catalogue</p>
       <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Check your connection and try again.</p>
-      <button onClick={() => { setLoadError(false); setLoading(true); window.location.reload() }} style={{ marginTop: 8, padding: '12px 32px', background: 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 12, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
+      <button onClick={() => { setLoadError(false); setLoading(true); window.location.reload() }} style={{ marginTop: 8, padding: '12px 32px', background: 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 12, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Try again</button>
     </div>
   )
 
-  // ── Render: loading — V-5 skeleton ────────────────────────────────────────
+  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
       <style>{safeAreaStyle}</style>
@@ -376,9 +477,7 @@ export default function CataloguePage() {
         ? <img src={config.logo_url} alt="logo" style={{ width: 64, height: 64, objectFit: 'contain', opacity: 0.9 }}/>
         : <svg width="52" height="52" viewBox="0 0 34 34" fill="none"><circle cx="17" cy="17" r="15" fill="rgba(139,26,43,0.2)" stroke="rgba(201,168,76,0.5)" strokeWidth="1"/><path d="M17 7C21 7 25 10 25 15C25 20 21 23 17 25C17 25 13 23 11 20C9 17 10 12 13 10C14.5 8.5 15.8 7 17 7Z" fill="rgba(139,26,43,0.7)" stroke="#C9A84C" strokeWidth="0.8"/><circle cx="17" cy="11" r="2" fill="#C9A84C"/></svg>
       }
-      {/* V-5: skeleton card shapes instead of just dots */}
       <div style={{ position: 'relative', width: dims.w, height: dims.h }}>
-        {/* back card */}
         <div style={{ position: 'absolute', width: dims.w, height: dims.h, borderRadius: 16, background: 'rgba(255,255,255,0.03)', transform: 'translateY(14px) scale(0.95)', transformOrigin: 'center bottom' }}/>
         <SkeletonCard w={dims.w} h={dims.h}/>
       </div>
@@ -388,23 +487,35 @@ export default function CataloguePage() {
 
   if (showOnboard) return <OccasionScreen occasions={occasions} config={config} onSelect={handleOccasionSelect}/>
 
-  // ── Render: main catalogue ────────────────────────────────────────────────
+  // ── Main catalogue ──────────────────────────────────────────────────────────
   return (
     <>
       {brandCss && <style>{`:root{${brandCss}}`}</style>}
       <style>{safeAreaStyle}</style>
+      {/* FIX-12: filter bar fade mask via global style */}
+      <style>{`
+        .filter-bar-wrap { position: relative; }
+        .filter-bar-wrap::after {
+          content: '';
+          position: absolute;
+          right: 0; top: 0; bottom: 0;
+          width: 40px;
+          background: linear-gradient(to right, transparent, #0d0805);
+          pointer-events: none;
+        }
+      `}</style>
+
       <div style={{ position: 'fixed', inset: 0, background: '#080502', display: 'flex', justifyContent: 'center' }}>
         <div style={{ width: '100%', maxWidth: 480, height: '100dvh', display: 'flex', flexDirection: 'column', background: '#0d0805', overflow: 'hidden' }}>
 
-          {/* Top bar — V-2: padding respects safe-area */}
+          {/* Top bar */}
           <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'calc(env(safe-area-inset-top, 12px) + 36px) 20px 12px' }}>
-            {/* UX-H: occasion chip visible in top bar + long-press to change */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <button
                 onPointerDown={() => { longPressRef.current = Date.now() }}
                 onPointerUp={() => {
                   if (Date.now() - longPressRef.current > 600) {
-                    try { localStorage.removeItem('skss_onboarded'); localStorage.removeItem('skss_occasion') } catch {}
+                    try { localStorage.removeItem('skss_onboarded_at'); localStorage.removeItem('skss_occasion') } catch {}
                     setOccasionFilter(null); setShowOnboard(true)
                   }
                 }}
@@ -414,14 +525,18 @@ export default function CataloguePage() {
               >
                 <Logo config={config}/>
               </button>
-              {/* UX-H: visible occasion chip under logo */}
+              {/* FIX-11: occasion chip taps to open screen (not just clear) */}
               {occasionFilter && (
                 <button
-                  onClick={() => { setOccasionFilter(null); try { localStorage.removeItem('skss_occasion') } catch {} }}
+                  onClick={() => {
+                    // FIX-11: tap chip → reopen occasion screen
+                    try { localStorage.removeItem('skss_onboarded_at') } catch {}
+                    setShowOnboard(true)
+                  }}
                   style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 20, padding: '2px 8px', cursor: 'pointer', width: 'fit-content' }}
                 >
-                  <span style={{ fontSize: 10, color: '#C9A84C', fontWeight: 500 }}>{occasionFilter}</span>
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <span style={{ fontSize: 10, color: 'var(--gold, #C9A84C)', fontWeight: 500 }}>{occasionFilter}</span>
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #C9A84C)" strokeWidth="3"><path d="M9 18l6-6-6-6"/></svg>
                 </button>
               )}
             </div>
@@ -429,7 +544,7 @@ export default function CataloguePage() {
             <button onClick={() => setShowWL(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 24, padding: '8px 16px 8px 12px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill={wishlist.length > 0 ? '#F87171' : 'none'} stroke={wishlist.length > 0 ? '#F87171' : 'rgba(255,255,255,0.7)'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               Saved
-              {wishlist.length > 0 && <span style={{ background: '#8B1A2B', color: '#fff', borderRadius: '50%', minWidth: 20, height: 20, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{wishlist.length}</span>}
+              {wishlist.length > 0 && <span style={{ background: 'var(--crimson, #8B1A2B)', color: '#fff', borderRadius: '50%', minWidth: 20, height: 20, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{wishlist.length}</span>}
             </button>
           </div>
 
@@ -441,27 +556,30 @@ export default function CataloguePage() {
             </div>
           )}
 
-          {/* UX-E: filter chips — show all categories via "more" toggle */}
-          <div style={{ flexShrink: 0, display: 'flex', gap: 7, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
-            {(showMoreCats ? categories : categories.slice(0, 5)).map(cat => (
-              <button key={cat} onClick={() => setCatFilter(cat)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: catFilter === cat ? '1.5px solid #C9A84C' : '1px solid rgba(255,255,255,0.12)', background: catFilter === cat ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', color: catFilter === cat ? '#C9A84C' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{cat}</button>
-            ))}
-            {/* UX-E: more/less toggle */}
-            {categories.length > 5 && (
-              <button onClick={() => setShowMoreCats(v => !v)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 10px', fontSize: 11, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                {showMoreCats ? '↑ less' : `+${categories.length - 5} more`}
-              </button>
-            )}
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }}/>
-            {BUDGETS.slice(1).map((b, i) => (
-              <button key={b.label} onClick={() => setBudgetIdx(budgetIdx === i + 1 ? 0 : i + 1)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: budgetIdx === i + 1 ? '1.5px solid rgba(139,26,43,0.7)' : '1px solid rgba(255,255,255,0.12)', background: budgetIdx === i + 1 ? 'rgba(139,26,43,0.2)' : 'rgba(255,255,255,0.04)', color: budgetIdx === i + 1 ? '#F8A3AF' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{b.label}</button>
-            ))}
-            {(catFilter !== 'All' || budgetIdx > 0 || occasionFilter) && (
-              <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 10px', fontSize: 11, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                {products.length}
-              </button>
-            )}
+          {/* FIX-12: filter bar with fade mask wrapper */}
+          <div className="filter-bar-wrap" style={{ flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 7, padding: '0 16px 12px', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
+              {(showMoreCats ? categories : categories.slice(0, 5)).map(cat => (
+                <button key={cat} onClick={() => setCatFilter(cat)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: catFilter === cat ? '1.5px solid var(--gold, #C9A84C)' : '1px solid rgba(255,255,255,0.12)', background: catFilter === cat ? 'rgba(201,168,76,0.15)' : 'rgba(255,255,255,0.04)', color: catFilter === cat ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{cat}</button>
+              ))}
+              {categories.length > 5 && (
+                <button onClick={() => setShowMoreCats(v => !v)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 10px', fontSize: 11, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  {showMoreCats ? '↑ less' : `+${categories.length - 5} more`}
+                </button>
+              )}
+              <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', flexShrink: 0 }}/>
+              {BUDGETS.slice(1).map((b, i) => (
+                <button key={b.label} onClick={() => setBudgetIdx(budgetIdx === i + 1 ? 0 : i + 1)} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 13px', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', border: budgetIdx === i + 1 ? '1.5px solid rgba(139,26,43,0.7)' : '1px solid rgba(255,255,255,0.12)', background: budgetIdx === i + 1 ? 'rgba(139,26,43,0.2)' : 'rgba(255,255,255,0.04)', color: budgetIdx === i + 1 ? '#F8A3AF' : 'rgba(255,255,255,0.45)', transition: 'all 0.15s' }}>{b.label}</button>
+              ))}
+              {(catFilter !== 'All' || budgetIdx > 0 || occasionFilter) && (
+                <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ flexShrink: 0, borderRadius: 20, padding: '5px 10px', fontSize: 11, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  {products.length}
+                </button>
+              )}
+              {/* padding right so last chip isn't hidden behind fade mask */}
+              <div style={{ width: 32, flexShrink: 0 }}/>
+            </div>
           </div>
 
           {(catFilter !== 'All' || budgetIdx > 0 || occasionFilter) && !isDone && (
@@ -483,13 +601,13 @@ export default function CataloguePage() {
                     ? (occasionFilter ? 'Try a different occasion or browse all sarees.' : 'Try removing a filter.')
                     : wishlist.length > 0 ? `${wishlist.length} saree${wishlist.length !== 1 ? 's' : ''} shortlisted.` : 'Browse again to save favourites.'}
                 </p>
-                {products.length === 0 && occasionFilter && <button onClick={() => setOccasionFilter(null)} style={{ padding: '12px 0', width: '100%', background: 'rgba(201,168,76,0.12)', border: '1.5px solid rgba(201,168,76,0.35)', borderRadius: 13, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>{config.catalogue_occasion_browse_all || 'Browse all sarees'}</button>}
+                {products.length === 0 && occasionFilter && <button onClick={() => setOccasionFilter(null)} style={{ padding: '12px 0', width: '100%', background: 'rgba(201,168,76,0.12)', border: '1.5px solid rgba(201,168,76,0.35)', borderRadius: 13, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>{config.catalogue_occasion_browse_all || 'Browse all sarees'}</button>}
                 {products.length === 0 && <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ padding: '12px 0', width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 13, color: '#fff', fontSize: 14, cursor: 'pointer' }}>Clear all filters</button>}
-                {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,#8B1A2B,#6B1220)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book a call</button>}
+                {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,var(--crimson, #8B1A2B),var(--crimson-dark, #6B1220))', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book a call</button>}
                 {products.length > 0 && <button onClick={() => { setIdx(0); setSeenIds(new Set()) }} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
                 {canLoadMore && (
                   <button onClick={async () => { await loadMore(); setIdx(0) }} disabled={loadingMore}
-                    style={{ padding: '13px 0', width: '100%', background: loadingMore ? 'rgba(201,168,76,0.1)' : 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 14, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: loadingMore ? 'default' : 'pointer' }}>
+                    style={{ padding: '13px 0', width: '100%', background: loadingMore ? 'rgba(201,168,76,0.1)' : 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 14, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: loadingMore ? 'default' : 'pointer' }}>
                     {loadingMore ? 'Loading more sarees…' : `Load more · ${totalProducts - allProducts.length} remaining`}
                   </button>
                 )}
@@ -512,37 +630,41 @@ export default function CataloguePage() {
             )}
           </div>
 
-          {/* B-4 FIX: progress bar — only show after first swipe, label as "X left" */}
+          {/* Progress bar — FIX-15: uses CSS variable */}
           {!isDone && products.length > 0 && idx > 0 && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
               <div style={{ height: 3, flex: 1, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.round((idx / Math.max(products.length, 1)) * 100)}%`, background: '#C9A84C', borderRadius: 2, transition: 'width 0.3s ease' }}/>
+                <div style={{ height: '100%', width: `${Math.round((idx / Math.max(products.length, 1)) * 100)}%`, background: 'var(--gold, #C9A84C)', borderRadius: 2, transition: 'width 0.3s ease' }}/>
               </div>
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', marginLeft: 10, flexShrink: 0 }}>{products.length - idx} left</span>
             </div>
           )}
 
-          {/* WhatsApp CTA pill */}
+          {/* FIX-16: WhatsApp pill — animation only on first appearance */}
           {wishlist.length >= 1 && !showWL && !detail && waNum && !isDone && (
             <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', paddingBottom: 6 }}>
-              <button onClick={handleBookCall} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', border: 'none', borderRadius: 28, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 24px rgba(37,211,102,0.45)', animation: 'floatIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
+              <button onClick={handleBookCall}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', border: 'none', borderRadius: 28, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 24px rgba(37,211,102,0.45)',
+                  // FIX-16: animate only once when first shown
+                  animation: pillShownRef.current ? 'none' : 'pillAppear 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards',
+                }}
+                ref={el => { if (el && !pillShownRef.current) pillShownRef.current = true }}
+              >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                 Book a call · {wishlist.length} saved · {fmt(wishlist.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0))}
               </button>
             </div>
           )}
 
-          {/* Action buttons — UX-B: labels visible until first swipe */}
+          {/* Action buttons */}
           {!isDone && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: '2px 0 20px', position: 'relative' }}>
-              {/* UX-04: undo hint */}
               {undoHintActive && (
                 <div style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8, background: 'rgba(251,191,36,0.95)', borderRadius: 20, padding: '6px 14px', whiteSpace: 'nowrap', pointerEvents: 'none', animation: 'floatIn 0.3s ease' }}>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1008' }}>Tap ↩ to undo that skip</p>
                 </div>
               )}
 
-              {/* V-1 + UX-B: buttons with labels */}
               {[
                 { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
                 { label: 'Skip', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>, onClick: () => btnSwipe(-1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#F87171', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Skip this saree' },
@@ -558,7 +680,6 @@ export default function CataloguePage() {
                   >
                     {btn.icon}
                   </button>
-                  {/* UX-B: label fades after first swipe */}
                   {showBtnLabels && (
                     <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', letterSpacing: 0.5, textTransform: 'uppercase', animation: idx > 0 ? 'btnLabelFade 0.8s ease forwards' : 'none' }}>
                       {btn.label}
@@ -578,18 +699,19 @@ export default function CataloguePage() {
               </div>
             </div>
           )}
+          {/* FIX-13: truncated name in saved toast */}
           {savedToast && (
             <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
               <div style={{ background: 'rgba(139,26,43,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 24, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#F87171"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Saved to shortlist</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{savedToast}</span>
               </div>
             </div>
           )}
           {undoRm && (
             <div style={{ position: 'absolute', bottom: 110, left: 16, right: 16, zIndex: 50, background: 'rgba(15,10,5,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Removed from shortlist</span>
-              <button onClick={() => { clearTimeout(undoRm.t); setWishlist(prev => prev.find(x => x.id === undoRm.it.id) ? prev : [...prev, undoRm.it]); setUndoRm(null) }} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 8, padding: '5px 14px', color: '#C9A84C', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Undo</button>
+              <button onClick={() => { clearTimeout(undoRm.t); setWishlist(prev => prev.find(x => x.id === undoRm.it.id) ? prev : [...prev, undoRm.it]); setUndoRm(null) }} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 8, padding: '5px 14px', color: 'var(--gold, #C9A84C)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Undo</button>
             </div>
           )}
         </div>
