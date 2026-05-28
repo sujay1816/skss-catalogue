@@ -130,7 +130,8 @@ export default function CataloguePage() {
   const labelsShownRef    = useRef(false)
   const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
   const currentIdxRef      = useRef(0)      // FIX-2+3: stable idx for loadMore's rerankDeck call
-  const productsRef = useRef<CatalogueProduct[]>([]) // BUG-3 FIX: always-current deck for swipe()
+  const productsRef         = useRef<CatalogueProduct[]>([]) // BUG-3 FIX: always-current deck for swipe()
+  const filteredProductsRef = useRef<CatalogueProduct[]>([]) // BUG-3 FIX: always-current filtered list for rerankDeck
   const wishlistMountedRef = useRef(false) // guard: skip sync on initial localStorage hydration
   // BUG-7 FIX: keep a ref so handleCaptureSubmit can read the current wishlist
   // without including it in its useCallback deps. This prevents PhoneCaptureSheet
@@ -403,7 +404,7 @@ export default function CataloguePage() {
       setSavedToast(name); setTimeout(() => setSavedToast(''), 1800)
     }
     setDragProg(0); setIdx(i => i + 1)
-  }, [products, save, undoSkip, undoHintShown, rerankDeck])
+  }, [save, undoSkip, undoHintShown, rerankDeck])
 
   // FIX-4: always show the capture sheet so returning users can pick a slot.
   // PhoneCaptureSheet pre-fills name/phone from localStorage so it is not extra friction.
