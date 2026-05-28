@@ -168,7 +168,7 @@ export function PhoneCaptureSheet({
             <label style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 600, display: 'block', marginBottom: 7 }}>WhatsApp number</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 15, color: 'rgba(255,255,255,0.4)', pointerEvents: 'none' }}>+91</span>
-              <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setError('') }} onKeyDown={handleKey} placeholder="98765 43210" autoComplete="tel" inputMode="numeric" maxLength={15}
+              <input type="tel" value={phone} onChange={e => { setPhone(e.target.value); setError('') }} onKeyDown={handleKey} placeholder="98765 43210" autoComplete="tel" inputMode="numeric" maxLength={12}
                 style={{ width: '100%', height: 50, borderRadius: 12, padding: '0 16px 0 52px', background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 15, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = 'rgba(201,168,76,0.6)'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.12)'}
               />

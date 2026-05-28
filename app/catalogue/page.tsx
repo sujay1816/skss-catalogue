@@ -690,9 +690,9 @@ export default function CataloguePage() {
           )}
 
           {/* Card stack */}
-          <div ref={stackRef} style={{ flexShrink: 0, height: dims.h + 28, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'relative' }}>
+          <div ref={stackRef} style={{ flexShrink: 0, height: dims.h + 28, overflow: isDone ? 'visible' : 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'relative' }}>
             {isDone ? (
-              <div style={{ width: dims.w, height: dims.h, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, textAlign: 'center' }}>
+              <div style={{ width: dims.w, maxHeight: dims.h, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, textAlign: 'center' }}>
                 <div style={{ fontSize: 56 }}>🥻</div>
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400, color: '#fff' }}>
                   {products.length === 0 ? (occasionFilter ? `No sarees found for "${occasionFilter}"` : 'No sarees match your filters') : "You've seen everything!"}
@@ -802,9 +802,9 @@ export default function CataloguePage() {
               </div>
             </div>
           )}
-          {/* FIX-13: truncated name in saved toast */}
+          {/* FIX-13: truncated name in saved toast — offset below sharedToast to avoid overlap */}
           {savedToast && (
-            <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
+            <div style={{ position: 'absolute', top: sharedToast ? 124 : 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
               <div style={{ background: 'rgba(139,26,43,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 24, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#F87171"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{savedToast}</span>
@@ -822,7 +822,7 @@ export default function CataloguePage() {
 
       {showCapture && <PhoneCaptureSheet wishlist={wishlist} config={config} onClose={() => setShowCapture(false)} onSubmit={handleCaptureSubmit}/>}
       {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} config={config} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => setDetail(p)}/>}
-      {showWL && <WishlistScreen items={wishlist} config={config} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById}/>}
+      {showWL && <WishlistScreen items={wishlist} config={config} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById} undoRm={undoRm} onUndoRm={() => { if (undoRm) { clearTimeout(undoRm.t); setWishlist(prev => prev.find(x => x.id === undoRm.it.id) ? prev : [...prev, undoRm.it]); setUndoRm(null) } }}/>}
     </>
   )
 }

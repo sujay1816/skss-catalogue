@@ -14,7 +14,7 @@ function buildShareUrl(items: WishlistItem[]) {
 // FIX-5: intent-anchored copy in footer — shows total prominently + contextual CTA
 // FIX-15: CSS variables for brand colours
 export function WishlistScreen({
-  items, config, onClose, onRemove, onCall, waNum, onOpenDetail,
+  items, config, onClose, onRemove, onCall, waNum, onOpenDetail, undoRm, onUndoRm,
 }: {
   items: WishlistItem[]
   config: SiteConfig
@@ -23,6 +23,8 @@ export function WishlistScreen({
   onCall: () => void
   waNum: string
   onOpenDetail: (id: string) => void
+  undoRm?: { it: WishlistItem; t: ReturnType<typeof setTimeout> } | null
+  onUndoRm?: () => void
 }) {
   const [copied, setCopied] = useState(false)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -63,6 +65,13 @@ export function WishlistScreen({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 400, background: '#080502', display: 'flex', flexDirection: 'column' }}>
+      {/* Undo-remove toast — rendered inside WishlistScreen so it appears above it (zIndex 401) */}
+      {undoRm && onUndoRm && (
+        <div style={{ position: 'absolute', bottom: 'calc(100px + env(safe-area-inset-bottom, 0px))', left: 16, right: 16, zIndex: 401, background: 'rgba(15,10,5,0.97)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Removed from shortlist</span>
+          <button onClick={onUndoRm} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid rgba(201,168,76,0.35)', borderRadius: 8, padding: '5px 14px', color: 'var(--gold, #C9A84C)', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Undo</button>
+        </div>
+      )}
       {/* Header */}
       <div style={{ padding: 'calc(env(safe-area-inset-top, 16px) + 36px) 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: items.length > 0 ? 14 : 0 }}>
