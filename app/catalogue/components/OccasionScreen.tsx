@@ -35,7 +35,7 @@ export function OccasionScreen({
 
   const cols  = occasions.length >= 6 ? 3 : 2
   const maxW  = cols === 3 ? 420 : 360
-  const items = occasions.slice(0, 6)
+  const items = occasions.slice(0, 8)  // matches API limit(8)
 
   return (
     <div

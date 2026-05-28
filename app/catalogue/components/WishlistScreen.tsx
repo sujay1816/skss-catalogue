@@ -41,9 +41,20 @@ export function WishlistScreen({
 
   const handleShare = () => {
     const url = buildShareUrl(items)
-    navigator.clipboard.writeText(url).then(() => {
-      setCopied(true); setTimeout(() => setCopied(false), 2500)
-    }).catch(() => { window.prompt('Copy your shortlist link:', url) })
+    // Use Web Share API if available (mobile native share sheet)
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      navigator.share({ title: 'My Saree Shortlist', url }).catch(() => {})
+      return
+    }
+    // Use Clipboard API only in secure contexts (HTTPS)
+    if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url).then(() => {
+        setCopied(true); setTimeout(() => setCopied(false), 2500)
+      }).catch(() => { window.prompt('Copy your shortlist link:', url) })
+    } else {
+      // Fallback for HTTP or unsupported browsers
+      window.prompt('Copy your shortlist link:', url)
+    }
   }
 
   return (

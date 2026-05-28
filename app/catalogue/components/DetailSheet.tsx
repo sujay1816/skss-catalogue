@@ -156,7 +156,7 @@ export function DetailSheet({
           {product.videoUrl && (
             <div style={{ padding: '12px 16px 0' }}>
               <div style={{ borderRadius: 12, overflow: 'hidden', background: '#000', aspectRatio: '16/9' }}>
-                <video src={product.videoUrl} controls playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}/>
+                <video src={product.videoUrl} controls playsInline preload="metadata" title="Drape video" aria-label={`${product.name} drape video`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}/>
               </div>
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 6, textAlign: 'center', letterSpacing: 0.5 }}>Drape video</p>
             </div>

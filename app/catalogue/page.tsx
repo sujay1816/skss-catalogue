@@ -124,6 +124,7 @@ export default function CataloguePage() {
   const labelsShownRef    = useRef(false)
   const pillShownRef      = useRef(false)  // FIX-16: one-time pill animation
   const currentIdxRef     = useRef(0)      // FIX-2+3: stable idx for loadMore's rerankDeck call
+  const wishlistMountedRef = useRef(false) // guard: skip sync on initial localStorage hydration
 
   // FIX-4: affinity weights updated on each right-swipe
   const affinityRef = useRef<{ fabrics: Record<string, number>; occasions: Record<string, number>; maxPrice: number; minPrice: number }>({
@@ -303,9 +304,11 @@ export default function CataloguePage() {
   }, [wishlist])
 
   useEffect(() => {
+    // Skip the first run — that's the localStorage hydration, not a real change
+    if (!wishlistMountedRef.current) { wishlistMountedRef.current = true; return }
     if (wishlist.length === 0) return
-    const name  = typeof window !== 'undefined' ? localStorage.getItem('skss_customer_name') : null
-    const phone = typeof window !== 'undefined' ? localStorage.getItem('skss_customer_phone') : null
+    const name  = localStorage.getItem('skss_customer_name')
+    const phone = localStorage.getItem('skss_customer_phone')
     if (!name || !phone) return
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current)
     syncTimerRef.current = setTimeout(() => {
@@ -394,6 +397,12 @@ export default function CataloguePage() {
   const btnSwipe = useCallback((dir: 1 | -1) => {
     const el = stackRef.current?.querySelector<HTMLElement>('[data-top-card]')
     if (el) {
+      // Cancel the hint animation timer — synthesise a pointerdown so TinderCard's
+      // onDown handler clears hintTimer, then immediately cancel the pointer.
+      const fakeEvent = new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: -1, clientX: 0, clientY: 0 })
+      el.dispatchEvent(fakeEvent)
+      el.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: -1 }))
+
       const stamp = el.querySelector<HTMLElement>(dir === 1 ? '.s-like' : '.s-nope')
       if (stamp) { stamp.style.opacity = '1' }
       setTimeout(() => {
@@ -681,7 +690,7 @@ export default function CataloguePage() {
 
           {/* Action buttons */}
           {!isDone && (
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: 'calc(2px) 0 calc(20px + env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 14, padding: '2px 0 calc(20px + env(safe-area-inset-bottom, 0px))', position: 'relative' }}>
               {[
                 { label: 'Undo', icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.14"/></svg>, onClick: () => { if (undoSkip) { clearTimeout(undoSkip.t); setIdx(i => Math.max(0, i - 1)); setUndoSkip(null) } }, disabled: !undoSkip, size: 46, style: { background: undoSkip ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.04)', border: undoSkip ? '1.5px solid rgba(251,191,36,0.5)' : '1.5px solid rgba(255,255,255,0.08)', color: undoSkip ? '#FBBF24' : 'rgba(255,255,255,0.2)' }, ariaLabel: 'Undo skip' },
                 { label: 'Skip', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>, onClick: () => btnSwipe(-1), disabled: false, size: 64, style: { background: '#fff', border: 'none', color: '#F87171', boxShadow: '0 6px 20px rgba(0,0,0,0.35)' }, ariaLabel: 'Skip this saree' },
