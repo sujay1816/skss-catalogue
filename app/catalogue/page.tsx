@@ -39,12 +39,19 @@ function getDeviceId(): string {
   } catch { return 'unknown' }
 }
 
-function buildWA(items: WishlistItem[], waNum: string, customerName?: string, occasion?: string | null) {
+function buildWA(items: WishlistItem[], waNum: string, customerName?: string, occasion?: string | null, template?: string) {
   const total    = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
   const list     = items.map((it, i) => `${i + 1}. ${it.name} — ${fmt(it.salePrice ?? it.originalPrice)}`).join('\n')
   const greeting = customerName ? `Hi, I'm ${customerName}.` : 'Hi!'
   const occLine  = occasion ? `\nShopping for: ${occasion}` : ''
-  return `https://wa.me/${waNum}?text=${encodeURIComponent(`${greeting}${occLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`)}`
+  const msg = template
+    ? template
+        .replace('{greeting}', greeting)
+        .replace('{occLine}', occLine)
+        .replace('{list}', list)
+        .replace('{total}', fmt(total))
+    : `${greeting}${occLine}\n\nI browsed your saree catalogue and shortlisted:\n\n${list}\n\nTotal: ${fmt(total)}\n\nCan we schedule a video call to see these in detail?`
+  return `https://wa.me/${waNum}?text=${encodeURIComponent(msg)}`
 }
 
 // ─── Skeleton card — V-5 ──────────────────────────────────────────────────────
@@ -247,9 +254,9 @@ export default function CataloguePage() {
     if (wishlist.length === 0 || !waNum) return
     const savedName = localStorage.getItem('skss_customer_name')
     if (savedName) {
-      window.open(buildWA(wishlist, waNum, savedName, occasionFilter), '_blank', 'noopener,noreferrer')
+      window.open(buildWA(wishlist, waNum, savedName, occasionFilter, config.catalogue_wa_message_template), '_blank', 'noopener,noreferrer')
     } else setShowCapture(true)
-  }, [wishlist, waNum, occasionFilter])
+  }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
 
   const handleCaptureSubmit = useCallback((name: string, phone: string) => {
     const storedPhone = phone.startsWith('91') ? phone : `91${phone}`
@@ -259,8 +266,8 @@ export default function CataloguePage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, phone, wishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null }),
     }).catch(() => {})
-    window.open(buildWA(wishlist, waNum, name, occasionFilter), '_blank', 'noopener,noreferrer')
-  }, [wishlist, waNum, occasionFilter])
+    window.open(buildWA(wishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template), '_blank', 'noopener,noreferrer')
+  }, [wishlist, waNum, occasionFilter, config.catalogue_wa_message_template])
 
   // UX-A: button-swipe now flashes stamp before animating card off
   const btnSwipe = useCallback((dir: 1 | -1) => {
@@ -379,7 +386,7 @@ export default function CataloguePage() {
     </div>
   )
 
-  if (showOnboard) return <OccasionScreen occasions={occasions} onSelect={handleOccasionSelect}/>
+  if (showOnboard) return <OccasionScreen occasions={occasions} config={config} onSelect={handleOccasionSelect}/>
 
   // ── Render: main catalogue ────────────────────────────────────────────────
   return (
@@ -476,7 +483,7 @@ export default function CataloguePage() {
                     ? (occasionFilter ? 'Try a different occasion or browse all sarees.' : 'Try removing a filter.')
                     : wishlist.length > 0 ? `${wishlist.length} saree${wishlist.length !== 1 ? 's' : ''} shortlisted.` : 'Browse again to save favourites.'}
                 </p>
-                {products.length === 0 && occasionFilter && <button onClick={() => setOccasionFilter(null)} style={{ padding: '12px 0', width: '100%', background: 'rgba(201,168,76,0.12)', border: '1.5px solid rgba(201,168,76,0.35)', borderRadius: 13, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>Browse all sarees</button>}
+                {products.length === 0 && occasionFilter && <button onClick={() => setOccasionFilter(null)} style={{ padding: '12px 0', width: '100%', background: 'rgba(201,168,76,0.12)', border: '1.5px solid rgba(201,168,76,0.35)', borderRadius: 13, color: '#C9A84C', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>{config.catalogue_occasion_browse_all || 'Browse all sarees'}</button>}
                 {products.length === 0 && <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ padding: '12px 0', width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 13, color: '#fff', fontSize: 14, cursor: 'pointer' }}>Clear all filters</button>}
                 {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,#8B1A2B,#6B1220)', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book a call</button>}
                 {products.length > 0 && <button onClick={() => { setIdx(0); setSeenIds(new Set()) }} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
@@ -588,9 +595,9 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} onClose={() => setShowCapture(false)} occasion={occasionFilter} onSubmit={handleCaptureSubmit}/>}
-      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => setDetail(p)}/>}
-      {showWL && <WishlistScreen items={wishlist} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById}/>}
+      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} config={config} onClose={() => setShowCapture(false)} occasion={occasionFilter} onSubmit={handleCaptureSubmit}/>}
+      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} config={config} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => setDetail(p)}/>}
+      {showWL && <WishlistScreen items={wishlist} config={config} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById}/>}
     </>
   )
 }

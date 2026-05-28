@@ -1,17 +1,25 @@
 'use client'
 import { useEffect } from 'react'
-import type { Occasion } from '../types'
+import type { Occasion, SiteConfig } from '../types'
 
 // ─── OccasionScreen ──────────────────────────────────────────────────────────
 // B-2 FIX: onSelect(null) moved to useEffect — no longer called during render.
 // V-3: fade-in animation on mount.
+// All UI strings are driven from admin site_config via the config prop.
 export function OccasionScreen({
   occasions,
+  config,
   onSelect,
 }: {
   occasions: Occasion[]
+  config: SiteConfig
   onSelect: (slug: string | null) => void
 }) {
+  const eyebrow   = config.catalogue_occasion_eyebrow    || 'Curated for you'
+  const heading   = config.catalogue_occasion_heading    || 'What are you shopping for?'
+  const subtext   = config.catalogue_occasion_subtext    || "We'll show you the most relevant sarees first"
+  const browseAll = config.catalogue_occasion_browse_all || 'Browse all sarees'
+
   // B-2: was calling onSelect during render — now safely deferred
   useEffect(() => {
     if (occasions.length === 0) onSelect(null)
@@ -31,7 +39,7 @@ export function OccasionScreen({
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '0 20px', overflowY: 'auto',
-        animation: 'occasionFadeIn 0.4s ease',  // V-3
+        animation: 'occasionFadeIn 0.4s ease',
       }}
     >
       <style>{`@keyframes occasionFadeIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -44,14 +52,16 @@ export function OccasionScreen({
       </div>
 
       <p style={{ fontFamily: 'var(--font-body)', fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', color: '#C9A84C', marginBottom: 10, fontWeight: 500, flexShrink: 0 }}>
-        Curated for you
+        {eyebrow}
       </p>
       <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(24px, 7vw, 36px)', fontWeight: 300, color: '#1A1A1A', textAlign: 'center', lineHeight: 1.15, marginBottom: 6, letterSpacing: 0.5, flexShrink: 0 }}>
-        What are you<br/>
-        <em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>shopping for?</em>
+        {heading.includes('\n')
+          ? heading.split('\n').map((line, i) => <span key={i}>{i > 0 && <br/>}{i === 1 ? <em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{line}</em> : line}</span>)
+          : <>{heading.split(' ').slice(0, -2).join(' ')}<br/><em style={{ color: '#8B1A2B', fontStyle: 'italic' }}>{heading.split(' ').slice(-2).join(' ')}</em></>
+        }
       </h1>
       <p style={{ fontFamily: 'var(--font-body)', fontSize: 13, color: '#5A4A3A', marginBottom: 28, textAlign: 'center', lineHeight: 1.6, flexShrink: 0 }}>
-        We&apos;ll show you the most relevant sarees first
+        {subtext}
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 10, width: '100%', maxWidth: maxW, flexShrink: 0 }}>
@@ -79,7 +89,7 @@ export function OccasionScreen({
         onClick={() => onSelect(null)}
         style={{ marginTop: 22, background: 'none', border: 'none', fontFamily: 'var(--font-body)', fontSize: 12, color: '#5A4A3A', cursor: 'pointer', padding: '8px 0', letterSpacing: 0.5, textDecoration: 'underline', textDecorationColor: '#E8DDD4', textUnderlineOffset: 3, flexShrink: 0 }}
       >
-        Browse all sarees
+        {browseAll}
       </button>
     </div>
   )

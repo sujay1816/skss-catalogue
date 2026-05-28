@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import type { WishlistItem } from '@/types'
-import type { CatalogueProduct } from '@/types'
+import type { SiteConfig } from '../types'
 
 const fmt = (n: number) => '₹' + n.toLocaleString('en-IN')
 
@@ -12,19 +12,25 @@ function buildShareUrl(items: WishlistItem[]) {
 }
 
 // UX-C: tapping a wishlist item opens detail sheet
-// V-4: items show a drag handle hint (drag-to-reorder UI via long-press swap)
+// All UI strings come from admin site_config via the config prop.
 export function WishlistScreen({
-  items, onClose, onRemove, onCall, waNum, onOpenDetail,
+  items, config, onClose, onRemove, onCall, waNum, onOpenDetail,
 }: {
   items: WishlistItem[]
+  config: SiteConfig
   onClose: () => void
   onRemove: (id: string) => void
   onCall: () => void
   waNum: string
-  onOpenDetail: (id: string) => void  // UX-C
+  onOpenDetail: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
   const total = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
+
+  const wishlistTitle      = config.catalogue_wishlist_title       || 'Your Shortlist'
+  const emptyTitle         = config.catalogue_wishlist_empty_title || 'Nothing saved yet'
+  const emptyBody          = config.catalogue_wishlist_empty_body  || 'Swipe right or tap the heart on any saree to save it here'
+  const ctaBookCall        = config.catalogue_cta_book_call        || 'Book a Call on WhatsApp'
 
   const handleShare = () => {
     const url = buildShareUrl(items)
@@ -42,7 +48,7 @@ export function WishlistScreen({
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <div style={{ flex: 1 }}>
-            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400, color: '#fff' }}>Your Shortlist</h1>
+            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400, color: '#fff' }}>{wishlistTitle}</h1>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>
               {items.length} {items.length === 1 ? 'saree' : 'sarees'} saved{items.length > 0 ? ` · ${fmt(total)}` : ''}
             </p>
@@ -60,8 +66,9 @@ export function WishlistScreen({
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 40, textAlign: 'center' }}>
           <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(139,26,43,0.12)', border: '1px solid rgba(139,26,43,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🥻</div>
           <div>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>Nothing saved yet</h2>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>Swipe right or tap the heart on<br/>any saree to save it here</p>
+            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 400, color: '#fff', marginBottom: 8 }}>{emptyTitle}</h2>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}
+               dangerouslySetInnerHTML={{ __html: emptyBody.replace('\n', '<br/>') }}/>
           </div>
           <button onClick={onClose} style={{ marginTop: 8, padding: '12px 28px', background: 'rgba(139,26,43,0.2)', border: '1px solid rgba(139,26,43,0.4)', borderRadius: 12, color: '#F8A3AF', fontSize: 14, cursor: 'pointer' }}>Start browsing</button>
         </div>
@@ -73,7 +80,6 @@ export function WishlistScreen({
           <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
               {items.map(it => (
-                // UX-C: tapping opens detail
                 <div key={it.id} onClick={() => onOpenDetail(it.id)} style={{ borderRadius: 16, overflow: 'hidden', background: '#1a1008', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', cursor: 'pointer' }}>
                   <div style={{ aspectRatio: '3/4', position: 'relative', overflow: 'hidden' }}>
                     {it.image
@@ -106,11 +112,10 @@ export function WishlistScreen({
               </div>
               <p style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>{fmt(total)}</p>
             </div>
-            {/* UX-D: unified label */}
             {waNum && (
               <button onClick={onCall} style={{ width: '100%', height: 54, borderRadius: 14, background: '#25D366', border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 20px rgba(37,211,102,0.3)', marginBottom: 10 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                Book a Call on WhatsApp
+                {ctaBookCall}
               </button>
             )}
             <div style={{ display: 'flex', gap: 10 }}>

@@ -1,11 +1,31 @@
 import type { Metadata, Viewport } from 'next'
+import { createClient } from '@supabase/supabase-js'
 import './globals.css'
 
-// BRAND fallback is intentionally blank — all real values come from admin site_config
-// Set NEXT_PUBLIC_BRAND_NAME in Vercel env vars as a static fallback for tab titles
+// Fetch brand + meta text from admin site_config at build/revalidation time
+async function getSiteConfig(): Promise<Record<string, string>> {
+  try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data } = await supabase
+      .from('site_config')
+      .select('key, value')
+      .in('key', [
+        'brand_name', 'logo_url',
+        'catalogue_meta_title', 'catalogue_meta_description',
+      ])
+    const cfg: Record<string, string> = {}
+    data?.forEach((r: { key: string; value: string }) => { if (r.value?.trim()) cfg[r.key] = r.value.trim() })
+    return cfg
+  } catch { return {} }
+}
+
 const CATALOGUE_URL = process.env.NEXT_PUBLIC_CATALOGUE_URL || ''
-const BRAND         = process.env.NEXT_PUBLIC_BRAND_NAME    || ''
 const OG_IMAGE      = process.env.NEXT_PUBLIC_OG_IMAGE      || ''
+
+export const revalidate = 300
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -14,21 +34,28 @@ export const viewport: Viewport = {
   themeColor: '#0D0905',
 }
 
-export const metadata: Metadata = {
-  title: BRAND ? `${BRAND} — Swipe & Discover` : 'Saree Catalogue — Swipe & Discover',
-  description: 'Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call.',
-  metadataBase: CATALOGUE_URL ? new URL(CATALOGUE_URL) : undefined,
-  robots: { index: true, follow: true },
-  openGraph: {
-    type: 'website',
-    title: BRAND ? `${BRAND} — Swipe Saree Catalogue` : 'Swipe Saree Catalogue',
-    description: 'Discover handcrafted sarees. Swipe, shortlist, and book a video call.',
-    siteName: BRAND || undefined,
-    ...(OG_IMAGE ? { images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Saree Catalogue' }] } : {}),
-  },
-  twitter: { card: 'summary_large_image' },
-  manifest: '/manifest.webmanifest',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: BRAND || 'Catalogue' },
+export async function generateMetadata(): Promise<Metadata> {
+  const cfg         = await getSiteConfig()
+  const brand       = cfg.brand_name       || process.env.NEXT_PUBLIC_BRAND_NAME || ''
+  const metaTitle   = cfg.catalogue_meta_title       || 'Swipe & Discover'
+  const metaDesc    = cfg.catalogue_meta_description || 'Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call.'
+
+  return {
+    title:       brand ? `${brand} — ${metaTitle}` : `Saree Catalogue — ${metaTitle}`,
+    description: metaDesc,
+    metadataBase: CATALOGUE_URL ? new URL(CATALOGUE_URL) : undefined,
+    robots: { index: true, follow: true },
+    openGraph: {
+      type: 'website',
+      title:       brand ? `${brand} — ${metaTitle}` : metaTitle,
+      description: metaDesc,
+      siteName:    brand || undefined,
+      ...(OG_IMAGE ? { images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Saree Catalogue' }] } : {}),
+    },
+    twitter: { card: 'summary_large_image' },
+    manifest: '/manifest.webmanifest',
+    appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: brand || 'Catalogue' },
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
