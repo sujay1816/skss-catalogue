@@ -28,6 +28,9 @@ const PUBLIC_KEYS = [
   'catalogue_meta_description',
 ]
 
+// Prevent Next.js prerendering this route at build time — Supabase env vars
+// are not available during Vercel builds, causing "supabaseUrl is required".
+export const dynamic = 'force-dynamic'
 export const revalidate = 300
 
 export async function GET() {

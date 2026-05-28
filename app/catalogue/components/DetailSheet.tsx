@@ -181,7 +181,7 @@ export function DetailSheet({
             <div style={{ marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
                 <span style={{ fontSize: 30, fontWeight: 700, color: flashPrice ? '#f87171' : 'var(--gold, #C9A84C)' }}>{fmt(displayPrice)}</span>
-                {(flashPrice || product.salePrice) && <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}>{fmt(product.originalPrice)}</span>}
+                {(flashPrice !== undefined || product.salePrice !== null) && <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.25)', textDecoration: 'line-through' }}>{fmt(product.originalPrice)}</span>}
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>excl. GST</span>
               </div>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.28)', lineHeight: 1.4 }}>

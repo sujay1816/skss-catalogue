@@ -222,7 +222,7 @@ export function TinderCard({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <span style={{ fontSize: 24, fontWeight: 700, color: flashPrice ? '#f87171' : 'var(--gold, #C9A84C)' }}>{fmt(flashPrice ?? priceOf(product))}</span>
-            {(flashPrice || product.salePrice) && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through', marginLeft: 8 }}>{fmt(product.originalPrice)}</span>}
+            {(flashPrice !== undefined || product.salePrice !== null) && <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)', textDecoration: 'line-through', marginLeft: 8 }}>{fmt(product.originalPrice)}</span>}
           </div>
           {sortedVars.length > 0 && (
             <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>

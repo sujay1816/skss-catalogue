@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Prevent Next.js prerendering this route at build time — Supabase env vars
+// are not available during Vercel builds, causing "supabaseUrl is required".
+export const dynamic = 'force-dynamic'
 export const revalidate = 60 // revalidate every minute for countdown accuracy
 
 export async function GET() {
