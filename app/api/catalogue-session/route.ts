@@ -10,6 +10,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 })
   }
 
+  // Truncate name/occasion/slot to sane DB column limits
+  const safeName = String(name).trim().slice(0, 200)
+
   const digits = phone.replace(/\D/g, '')
   // Normalise: strip a leading 91 country code so we always validate the
   // 10-digit local number. This mirrors the client-side BUG-2 fix so both
@@ -30,8 +33,8 @@ export async function POST(request: Request) {
   const safeWishlist = Array.isArray(wishlist) ? wishlist : []
   // Coerce occasion and preferred_slot to string|null so objects/arrays from a
   // malformed body can't be silently stored as JSONB in the DB
-  const safeOccasion = (typeof occasion === 'string' && occasion.trim()) ? occasion.trim() : null
-  const safeSlot     = (typeof preferred_slot === 'string' && preferred_slot.trim()) ? preferred_slot.trim() : null
+  const safeOccasion = (typeof occasion === 'string' && occasion.trim()) ? occasion.trim().slice(0, 100) : null
+  const safeSlot     = (typeof preferred_slot === 'string' && preferred_slot.trim()) ? preferred_slot.trim().slice(0, 200) : null
 
   // BUG-5 FIX: when safeDeviceId is null we cannot upsert on phone because two
   // different people can share the same number (family member, in-store demo).
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
       .from('catalogue_sessions')
       .upsert(
         {
-          name:           name.trim(),
+          name:           safeName,
           phone:          normalised,
           wishlist:       safeWishlist,
           occasion:       safeOccasion,
@@ -68,7 +71,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabase
     .from('catalogue_sessions')
     .insert({
-      name:           name.trim(),
+      name:           safeName,
       phone:          normalised,
       wishlist:       safeWishlist,
       occasion:       safeOccasion,
