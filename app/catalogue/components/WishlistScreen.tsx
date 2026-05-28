@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import type { WishlistItem } from '@/types'
 import type { SiteConfig } from '../types'
@@ -25,6 +25,8 @@ export function WishlistScreen({
   onOpenDetail: (id: string) => void
 }) {
   const [copied, setCopied] = useState(false)
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current) }, [])
   const total = items.reduce((s, it) => s + (it.salePrice ?? it.originalPrice), 0)
 
   const wishlistTitle  = config.catalogue_wishlist_title       || 'Your Shortlist'
@@ -49,7 +51,9 @@ export function WishlistScreen({
     // Use Clipboard API only in secure contexts (HTTPS)
     if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(url).then(() => {
-        setCopied(true); setTimeout(() => setCopied(false), 2500)
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current)
+        setCopied(true)
+        copiedTimerRef.current = setTimeout(() => setCopied(false), 2500)
       }).catch(() => { window.prompt('Copy your shortlist link:', url) })
     } else {
       // Fallback for HTTP or unsupported browsers

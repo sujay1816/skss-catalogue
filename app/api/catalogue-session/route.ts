@@ -26,6 +26,8 @@ export async function POST(request: Request) {
   )
 
   const safeDeviceId = (device_id && device_id !== 'unknown') ? device_id : null
+  // Ensure wishlist is always stored as an array even if the client sends garbage
+  const safeWishlist = Array.isArray(wishlist) ? wishlist : []
 
   // BUG-5 FIX: when safeDeviceId is null we cannot upsert on phone because two
   // different people can share the same number (family member, in-store demo).
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
         {
           name:           name.trim(),
           phone:          normalised,
-          wishlist:       wishlist ?? [],
+          wishlist:       safeWishlist,
           occasion:       occasion ?? null,
           device_id:      safeDeviceId,
           preferred_slot: preferred_slot ?? null,
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
     .insert({
       name:           name.trim(),
       phone:          normalised,
-      wishlist:       wishlist ?? [],
+      wishlist:       safeWishlist,
       occasion:       occasion ?? null,
       device_id:      null,
       preferred_slot: preferred_slot ?? null,

@@ -67,6 +67,7 @@ export function PhoneCaptureSheet({
   const [error,      setError]      = useState('')
   const nameRef   = useRef<HTMLInputElement>(null)
   const customRef = useRef<HTMLInputElement>(null)
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const slots     = buildSlots()
 
   const effectiveSlot = showCustom ? customSlot.trim() : slot
@@ -77,7 +78,10 @@ export function PhoneCaptureSheet({
   const ctaBookCall     = config.catalogue_cta_book_call    || 'Book a Call on WhatsApp'
   const ctaOpeningWa    = config.catalogue_cta_opening_wa   || 'Opening WhatsApp\u2026'
 
-  useEffect(() => { setTimeout(() => nameRef.current?.focus(), 300) }, [])
+  useEffect(() => {
+    focusTimerRef.current = setTimeout(() => nameRef.current?.focus(), 300)
+    return () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current) }
+  }, [])
 
   const handleSubmit = async () => {
     const n = name.trim()

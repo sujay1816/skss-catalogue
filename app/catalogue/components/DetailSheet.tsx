@@ -6,7 +6,7 @@ import type { FlashSale } from '../types'
 import { Countdown } from './Countdown'
 
 const fmt     = (n: number) => '₹' + n.toLocaleString('en-IN')
-const disc    = (o: number, s: number | null) => (!s || s >= o) ? null : Math.round(((o - s) / o) * 100) + '% off'
+const disc    = (o: number, s: number | null) => (s === null || s >= o) ? null : Math.round(((o - s) / o) * 100) + '% off'
 const priceOf = (p: CatalogueProduct) => p.salePrice ?? p.originalPrice
 
 // FIX-1:  activeVariant state — tapping a colour chip switches the main image

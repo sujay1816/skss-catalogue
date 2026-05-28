@@ -6,7 +6,7 @@ import type { FlashSale } from '../types'
 import { Countdown } from './Countdown'
 
 const fmt    = (n: number) => '₹' + n.toLocaleString('en-IN')
-const disc   = (o: number, s: number | null) => (!s || s >= o) ? null : Math.round(((o - s) / o) * 100) + '% off'
+const disc   = (o: number, s: number | null) => (s === null || s >= o) ? null : Math.round(((o - s) / o) * 100) + '% off'
 const imgOf  = (p: CatalogueProduct) => (p.images.find(i => i.isPrimary) || p.images[0])?.url || ''
 const priceOf = (p: CatalogueProduct) => p.salePrice ?? p.originalPrice
 // BUG-9 FIX: compute isNew at render-time from createdAt (not from the cached server route)
