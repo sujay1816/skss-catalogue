@@ -51,13 +51,11 @@ function buildSlots(): { label: string; value: string }[] {
 }
 
 export function PhoneCaptureSheet({
-  wishlist, waNum, config, onClose, occasion, onSubmit,
+  wishlist, config, onClose, onSubmit,
 }: {
   wishlist: WishlistItem[]
-  waNum: string
   config: SiteConfig
   onClose: () => void
-  occasion?: string | null
   onSubmit: (name: string, phone: string, slot?: string) => void  // FIX-3: slot param
 }) {
   const [name,       setName]       = useState(() => { try { return localStorage.getItem('skss_customer_name') || '' } catch { return '' } })
@@ -98,6 +96,7 @@ export function PhoneCaptureSheet({
     setLoading(true)
     try {
       onSubmit(n, p, effectiveSlot || undefined)  // FIX-3: pass slot; p is already 10-digit clean
+      setLoading(false)
       onClose()
     } catch {
       setLoading(false)

@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  let q = supabase
+  const q = supabase
     .from('products')
     .select(SELECT, { count: 'exact' })
     .eq('is_active', true)
@@ -76,8 +76,8 @@ export async function GET(request: Request) {
       length: r.length || 5.5, weightGrams: r.weight_grams || 0,
       categoryName: r.categories?.name || '',
       categorySlug: r.categories?.slug || '',
-      originalPrice: r.original_price, salePrice: r.sale_price || null,
-      discountPercent: r.discount_percent || null,
+      originalPrice: r.original_price, salePrice: r.sale_price ?? null,
+      discountPercent: r.discount_percent ?? null,
       gstRate: r.gst_rate || 5,
       images, variants, totalStock, isFeatured: r.is_featured || false,
       isBestseller: r.is_bestseller || false,

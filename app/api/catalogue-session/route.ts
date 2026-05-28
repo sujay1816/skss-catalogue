@@ -11,9 +11,14 @@ export async function POST(request: Request) {
   }
 
   const digits = phone.replace(/\D/g, '')
-  if (digits.length < 10) {
-    return NextResponse.json({ error: 'Please enter a valid phone number' }, { status: 400 })
+  // Normalise: strip a leading 91 country code so we always validate the
+  // 10-digit local number. This mirrors the client-side BUG-2 fix so both
+  // ends reject the same invalid inputs (e.g. 11-digit numbers).
+  const localDigits = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits
+  if (localDigits.length !== 10) {
+    return NextResponse.json({ error: 'Please enter a valid 10-digit phone number' }, { status: 400 })
   }
+  const normalised = `91${localDigits}`
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +39,7 @@ export async function POST(request: Request) {
       .upsert(
         {
           name:           name.trim(),
-          phone:          digits.startsWith('91') ? digits : '91' + digits,
+          phone:          normalised,
           wishlist:       wishlist ?? [],
           occasion:       occasion ?? null,
           device_id:      safeDeviceId,
@@ -58,7 +63,7 @@ export async function POST(request: Request) {
     .from('catalogue_sessions')
     .insert({
       name:           name.trim(),
-      phone:          digits.startsWith('91') ? digits : '91' + digits,
+      phone:          normalised,
       wishlist:       wishlist ?? [],
       occasion:       occasion ?? null,
       device_id:      null,

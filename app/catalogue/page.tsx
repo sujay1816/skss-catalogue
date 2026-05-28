@@ -461,7 +461,12 @@ export default function CataloguePage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, phone: storedPhone, wishlist: currentWishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
     }).catch(() => {})
-    window.open(buildWA(currentWishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot), '_blank', 'noopener,noreferrer')
+    const waUrl = buildWA(currentWishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot)
+    // window.open is called synchronously inside a user-gesture handler so
+    // popup blockers should not fire. If it does return null (blocked), fall
+    // back to a same-tab redirect so the WhatsApp link always reaches the user.
+    const win = window.open(waUrl, '_blank', 'noopener,noreferrer')
+    if (!win) window.location.href = waUrl
   }, [waNum, occasionFilter, config.catalogue_wa_message_template])
 
   const btnSwipe = useCallback((dir: 1 | -1) => {
@@ -815,7 +820,7 @@ export default function CataloguePage() {
         </div>
       </div>
 
-      {showCapture && <PhoneCaptureSheet wishlist={wishlist} waNum={waNum} config={config} onClose={() => setShowCapture(false)} occasion={occasionFilter} onSubmit={handleCaptureSubmit}/>}
+      {showCapture && <PhoneCaptureSheet wishlist={wishlist} config={config} onClose={() => setShowCapture(false)} onSubmit={handleCaptureSubmit}/>}
       {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} config={config} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => setDetail(p)}/>}
       {showWL && <WishlistScreen items={wishlist} config={config} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById}/>}
     </>
