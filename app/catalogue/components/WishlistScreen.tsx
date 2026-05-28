@@ -107,7 +107,7 @@ export function WishlistScreen({
         </div>
       ) : (
         <>
-          <p style={{ flexShrink: 0, fontSize: 11, color: 'rgba(255,255,255,0.2)', textAlign: 'center', padding: '6px 0 0', letterSpacing: 0.3 }}>Tap any saree to view details</p>
+          <p style={{ flexShrink: 0, fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center', padding: '6px 0 0', letterSpacing: 0.3 }}>Tap any saree to view details</p>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, minHeight: 0 }}>
             <div style={{ display: 'grid', gridTemplateColumns: items.length === 1 ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 8, maxWidth: items.length === 1 ? 220 : '100%', margin: items.length === 1 ? '0 auto 8px' : '0 0 8px' }}>

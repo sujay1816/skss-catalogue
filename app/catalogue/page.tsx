@@ -130,6 +130,7 @@ export default function CataloguePage() {
   const undoHintTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Fix 4: store toast dismiss timers so a rapid second toast cancels the first
   const savedToastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const errorToastTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sharedToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stackRef          = useRef<HTMLDivElement>(null)
   const labelsShownRef    = useRef(false)
@@ -169,6 +170,7 @@ export default function CataloguePage() {
   const [dragProg,       setDragProg]       = useState(0)
   const [showCapture,    setShowCapture]    = useState(false)
   const [savedToast,     setSavedToast]     = useState('')
+  const [errorToast,     setErrorToast]     = useState('')
   const [sharedToast,    setSharedToast]    = useState('')
   const [undoHintShown,  setUndoHintShown]  = useState(false)
   const [undoHintActive, setUndoHintActive] = useState(false)
@@ -185,7 +187,7 @@ export default function CataloguePage() {
 
   const waNum    = config.whatsapp_number || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || ''
   const brandCss = [
-    config.color_primary ? `--crimson:${config.color_primary};--crimson-dark:${config.color_primary}` : '',
+    config.color_primary ? `--crimson:${config.color_primary};--crimson-dark:color-mix(in srgb, ${config.color_primary} 80%, #000 20%)` : '',
     config.color_accent  ? `--gold:${config.color_accent};--gold-light:${config.color_accent}` : '',
   ].filter(Boolean).join(';')
 
@@ -357,6 +359,7 @@ export default function CataloguePage() {
     return () => {
       if (undoHintTimerRef.current)  clearTimeout(undoHintTimerRef.current)
       if (savedToastTimerRef.current)  clearTimeout(savedToastTimerRef.current)
+      if (errorToastTimerRef.current)   clearTimeout(errorToastTimerRef.current)
       if (sharedToastTimerRef.current) clearTimeout(sharedToastTimerRef.current)
     }
   }, [])
@@ -439,9 +442,9 @@ export default function CataloguePage() {
   const handleBookCall = useCallback(() => {
     if (wishlist.length === 0) return
     if (!waNum) {
-      setSavedToast('WhatsApp not configured — contact the shop directly')
-      if (savedToastTimerRef.current) clearTimeout(savedToastTimerRef.current)
-      savedToastTimerRef.current = setTimeout(() => setSavedToast(''), 3000)
+      setErrorToast('WhatsApp not configured — contact the shop directly')
+      if (errorToastTimerRef.current) clearTimeout(errorToastTimerRef.current)
+      errorToastTimerRef.current = setTimeout(() => setErrorToast(''), 3000)
       return
     }
     setShowCapture(true)
@@ -566,7 +569,6 @@ export default function CataloguePage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [btnSwipe, detail, showWL, showCapture, showOnboard, products, idx, undoSkip])
-
 
   // ── Error ──────────────────────────────────────────────────────────────────
   if (loadError) return (
@@ -702,7 +704,7 @@ export default function CataloguePage() {
           {/* Card stack */}
           <div ref={stackRef} style={{ flexShrink: 0, height: dims.h + 28, overflow: isDone ? 'visible' : 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'relative' }}>
             {isDone ? (
-              <div style={{ width: dims.w, maxHeight: dims.h, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, textAlign: 'center' }}>
+              <div style={{ width: dims.w, maxHeight: dims.h, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '24px 32px', textAlign: 'center' }}>
                 <div style={{ fontSize: 56 }}>🥻</div>
                 <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 400, color: '#fff' }}>
                   {products.length === 0 ? (occasionFilter ? `No sarees found for "${occasionFilter}"` : 'No sarees match your filters') : "You've seen everything!"}
@@ -715,7 +717,7 @@ export default function CataloguePage() {
                 {products.length === 0 && occasionFilter && <button onClick={() => setOccasionFilter(null)} style={{ padding: '12px 0', width: '100%', background: 'rgba(201,168,76,0.12)', border: '1.5px solid rgba(201,168,76,0.35)', borderRadius: 13, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 8 }}>{config.catalogue_occasion_browse_all || 'Browse all sarees'}</button>}
                 {products.length === 0 && <button onClick={() => { setCatFilter('All'); setBudgetIdx(0); setOccasionFilter(null) }} style={{ padding: '12px 0', width: '100%', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 13, color: '#fff', fontSize: 14, cursor: 'pointer' }}>Clear all filters</button>}
                 {wishlist.length > 0 && <button onClick={() => setShowWL(true)} style={{ padding: '13px 0', width: '100%', background: 'linear-gradient(135deg,var(--crimson, #8B1A2B),var(--crimson-dark, #6B1220))', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>View shortlist & Book a call</button>}
-                {products.length > 0 && <button onClick={() => { setIdx(0); setSeenIds(new Set()) }} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
+                {products.length > 0 && <button onClick={() => { setIdx(0); setSeenIds(new Set()); setRankedProducts([]) }} style={{ padding: '11px 0', width: '100%', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 14, color: 'rgba(255,255,255,0.4)', fontSize: 13, cursor: 'pointer' }}>Browse again</button>}
                 {canLoadMore && (
                   <button onClick={async () => { const prevLen = allProducts.length; await loadMore(); setIdx(prevLen) }} disabled={loadingMore}
                     style={{ padding: '13px 0', width: '100%', background: loadingMore ? 'rgba(201,168,76,0.1)' : 'rgba(201,168,76,0.15)', border: '1.5px solid rgba(201,168,76,0.4)', borderRadius: 14, color: 'var(--gold, #C9A84C)', fontSize: 14, fontWeight: 600, cursor: loadingMore ? 'default' : 'pointer' }}>
@@ -740,8 +742,6 @@ export default function CataloguePage() {
               })
             )}
           </div>
-
-
 
           {/* Undo hint — inline so it pushes the pill down instead of overlapping it */}
           {undoHintActive && (
@@ -804,9 +804,18 @@ export default function CataloguePage() {
               </div>
             </div>
           )}
+          {/* Error toast — generic feedback (not a save confirmation) */}
+          {errorToast && (
+            <div style={{ position: 'absolute', top: sharedToast ? 124 : 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
+              <div style={{ background: 'rgba(251,191,36,0.95)', backdropFilter: 'blur(12px)', borderRadius: 24, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.7)" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.8)' }}>{errorToast}</span>
+              </div>
+            </div>
+          )}
           {/* FIX-13: truncated name in saved toast — offset below sharedToast to avoid overlap */}
           {savedToast && (
-            <div style={{ position: 'absolute', top: sharedToast ? 124 : 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
+            <div style={{ position: 'absolute', top: sharedToast ? 124 : (errorToast ? 124 : 80), left: '50%', transform: 'translateX(-50%)', zIndex: 50, pointerEvents: 'none', animation: 'floatIn 0.25s ease' }}>
               <div style={{ background: 'rgba(139,26,43,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 24, padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#F87171"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{savedToast}</span>

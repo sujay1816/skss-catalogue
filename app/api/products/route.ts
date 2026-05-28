@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Prevent static prerender at build time — Supabase env vars not available then
+export const dynamic = 'force-dynamic'
 export const revalidate = 60 // revalidate product list every 60s
 
 const SELECT = `

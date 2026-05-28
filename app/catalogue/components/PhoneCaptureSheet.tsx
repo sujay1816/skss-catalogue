@@ -83,29 +83,17 @@ export function PhoneCaptureSheet({
     return () => { if (focusTimerRef.current) clearTimeout(focusTimerRef.current) }
   }, [])
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     const n = name.trim()
-    // BUG-2 FIX: strip all non-digits, then strip a leading "91" country code if
-    // present (the state initialiser already does this for the stored value, but
-    // old storage entries or paste inputs may still arrive with the prefix).
-    // Validate that the resulting local number is exactly 10 digits — the only
-    // valid Indian mobile number length. The previous `p.length < 10 || p.length > 10`
-    // was logically equivalent to `p.length !== 10` but did NOT account for stored
-    // 12-digit "91XXXXXXXXXX" values that bypass the localStorage strip.
     const rawDigits = phone.replace(/\D/g, '')
     const p = rawDigits.startsWith('91') && rawDigits.length === 12 ? rawDigits.slice(2) : rawDigits
     if (!n) { setError('Please enter your name'); return }
     if (p.length !== 10) { setError('Please enter a valid 10-digit phone number'); return }
     setError('')
     setLoading(true)
-    try {
-      onSubmit(n, p, effectiveSlot || undefined)  // FIX-3: pass slot; p is already 10-digit clean
-      setLoading(false)
-      onClose()
-    } catch {
-      setLoading(false)
-      setError('Something went wrong. Please try again.')
-    }
+    onSubmit(n, p, effectiveSlot || undefined)
+    setLoading(false)
+    onClose()
   }
 
   const handleKey = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSubmit() }
