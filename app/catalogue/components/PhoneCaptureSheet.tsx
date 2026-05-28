@@ -59,13 +59,18 @@ export function PhoneCaptureSheet({
   occasion?: string | null
   onSubmit: (name: string, phone: string, slot?: string) => void  // FIX-3: slot param
 }) {
-  const [name,    setName]    = useState(() => { try { return localStorage.getItem('skss_customer_name') || '' } catch { return '' } })
-  const [phone,   setPhone]   = useState(() => { try { const p = localStorage.getItem('skss_customer_phone') || ''; return p.startsWith('91') ? p.slice(2) : p } catch { return '' } })
-  const [slot,    setSlot]    = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState('')
-  const nameRef = useRef<HTMLInputElement>(null)
-  const slots   = buildSlots()
+  const [name,       setName]       = useState(() => { try { return localStorage.getItem('skss_customer_name') || '' } catch { return '' } })
+  const [phone,      setPhone]      = useState(() => { try { const p = localStorage.getItem('skss_customer_phone') || ''; return p.startsWith('91') ? p.slice(2) : p } catch { return '' } })
+  const [slot,       setSlot]       = useState('')
+  const [customSlot, setCustomSlot] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState('')
+  const nameRef   = useRef<HTMLInputElement>(null)
+  const customRef = useRef<HTMLInputElement>(null)
+  const slots     = buildSlots()
+
+  const effectiveSlot = showCustom ? customSlot.trim() : slot
 
   const captureTitle    = config.catalogue_capture_title    || 'Almost there!'
   const captureSubtitle = config.catalogue_capture_subtitle || 'Just your name and number so we know who to expect on WhatsApp.'
@@ -83,7 +88,7 @@ export function PhoneCaptureSheet({
     setError('')
     setLoading(true)
     try {
-      onSubmit(n, p, slot || undefined)  // FIX-3: pass slot
+      onSubmit(n, p, effectiveSlot || undefined)  // FIX-3: pass slot
       onClose()
     } catch {
       setLoading(false)
@@ -157,19 +162,41 @@ export function PhoneCaptureSheet({
             </div>
           </div>
 
-          {/* FIX-3: slot picker */}
+          {/* FIX-3: slot picker with custom time option */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)', fontWeight: 600, display: 'block', marginBottom: 8 }}>When works for a call? <span style={{ color: 'rgba(255,255,255,0.2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {slots.map(s => (
-                <button key={s.value} onClick={() => setSlot(slot === s.value ? '' : s.value)}
-                  style={{ width: '100%', height: 44, borderRadius: 12, padding: '0 16px', background: slot === s.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.04)', border: slot === s.value ? '1.5px solid var(--gold, #C9A84C)' : '1px solid rgba(255,255,255,0.1)', color: slot === s.value ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: slot === s.value ? 600 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
-                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: slot === s.value ? '2px solid var(--gold, #C9A84C)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {slot === s.value && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--gold, #C9A84C)' }}/>}
+                <button key={s.value} onClick={() => { setSlot(slot === s.value ? '' : s.value); setShowCustom(false) }}
+                  style={{ width: '100%', height: 44, borderRadius: 12, padding: '0 16px', background: !showCustom && slot === s.value ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.04)', border: !showCustom && slot === s.value ? '1.5px solid var(--gold, #C9A84C)' : '1px solid rgba(255,255,255,0.1)', color: !showCustom && slot === s.value ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: !showCustom && slot === s.value ? 600 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
+                  <div style={{ width: 16, height: 16, borderRadius: '50%', border: !showCustom && slot === s.value ? '2px solid var(--gold, #C9A84C)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {!showCustom && slot === s.value && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--gold, #C9A84C)' }}/>}
                   </div>
                   {s.label}
                 </button>
               ))}
+
+              {/* Custom time option */}
+              <button onClick={() => { setShowCustom(v => !v); setSlot(''); setTimeout(() => customRef.current?.focus(), 50) }}
+                style={{ width: '100%', height: 44, borderRadius: 12, padding: '0 16px', background: showCustom ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.04)', border: showCustom ? '1.5px solid var(--gold, #C9A84C)' : '1px solid rgba(255,255,255,0.1)', color: showCustom ? 'var(--gold, #C9A84C)' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: showCustom ? 600 : 400, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
+                <div style={{ width: 16, height: 16, borderRadius: '50%', border: showCustom ? '2px solid var(--gold, #C9A84C)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {showCustom && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--gold, #C9A84C)' }}/>}
+                </div>
+                Choose a custom time
+              </button>
+
+              {showCustom && (
+                <input
+                  ref={customRef}
+                  type="text"
+                  value={customSlot}
+                  onChange={e => setCustomSlot(e.target.value)}
+                  placeholder="e.g. Saturday after 5 PM"
+                  style={{ width: '100%', height: 46, borderRadius: 12, padding: '0 16px', background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(201,168,76,0.5)', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'var(--font-body)', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--gold, #C9A84C)'}
+                  onBlur={e => e.target.style.borderColor = 'rgba(201,168,76,0.5)'}
+                />
+              )}
             </div>
           </div>
 
@@ -184,7 +211,7 @@ export function PhoneCaptureSheet({
           >
             {loading
               ? <span style={{ opacity: 0.7 }}>{ctaOpeningWa}</span>
-              : (<><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>{slot ? `${ctaBookCall} · ${slot.split('(')[0].trim()}` : ctaBookCall}</>)
+              : (<><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>{effectiveSlot ? `${ctaBookCall} · ${effectiveSlot.split('(')[0].trim()}` : ctaBookCall}</>)
             }
           </button>
         </div>
