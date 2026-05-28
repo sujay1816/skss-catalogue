@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   title: BRAND ? `${BRAND} — Swipe & Discover` : 'Saree Catalogue — Swipe & Discover',
   description: 'Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call.',
   metadataBase: CATALOGUE_URL ? new URL(CATALOGUE_URL) : undefined,
+  robots: { index: true, follow: true },
   openGraph: {
     type: 'website',
     title: BRAND ? `${BRAND} — Swipe Saree Catalogue` : 'Swipe Saree Catalogue',

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+export const revalidate = 60 // revalidate product list every 60s
+
 const SELECT = `
   id, name, slug, description, fabric, weave_type, origin_region,
   occasion, care_instructions, blouse_included, length, weight_grams,
@@ -30,8 +32,10 @@ interface ImageRow { id: string; url: string; alt_text: string | null; is_primar
 interface VariantRow { id: string; colour: string; colour_hex: string | null; stock: number; image_url: string | null }
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const limit  = Math.min(Number(searchParams.get('limit') ?? '50'), 100)
-  const offset = Number(searchParams.get('offset') ?? '0')
+  const rawLimit  = Number(searchParams.get('limit') ?? '50')
+  const rawOffset = Number(searchParams.get('offset') ?? '0')
+  const limit  = Math.min(Math.max(isNaN(rawLimit)  ? 50 : rawLimit,  1), 100)
+  const offset = Math.max(isNaN(rawOffset) ? 0 : rawOffset, 0)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!

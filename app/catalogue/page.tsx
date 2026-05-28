@@ -488,7 +488,7 @@ function TinderCard({ product, stackIndex, isTop, dragProgress, onSwipe, onTap, 
     <div ref={ref} data-top-card={isTop ? '' : undefined}
       onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp}
       style={{
-        position: 'relative', width: cardW, height: cardH,
+        position: 'absolute', width: cardW, height: cardH,
         borderRadius: 16, overflow: 'hidden', flexShrink: 0,
         cursor: isTop ? 'grab' : 'default', userSelect: 'none', touchAction: 'none',
         zIndex: 10 - stackIndex,
@@ -1071,8 +1071,10 @@ export default function CataloguePage() {
     }
   }, [wishlist, waNum, occasionFilter])
 
+  const stackRef = useRef<HTMLDivElement>(null)
+
   const btnSwipe = useCallback((dir: 1 | -1) => {
-    const el = document.querySelector<HTMLElement>('[data-top-card]')
+    const el = stackRef.current?.querySelector<HTMLElement>('[data-top-card]')
     if (el) {
       el.style.transition = 'transform 0.35s ease, opacity 0.3s ease'
       el.style.transform  = `translate(${dir * (dims.w + 300)}px, 0) rotate(${dir * 28}deg)`
@@ -1259,8 +1261,8 @@ export default function CataloguePage() {
             </div>
           )}
 
-          {/* Card stack — no paddingTop, removed 4px that clipped images */}
-          <div style={{ flexShrink: 0, height: dims.h + 28, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+          {/* Card stack — position:relative so absolute children stack correctly */}
+          <div ref={stackRef} style={{ flexShrink: 0, height: dims.h + 28, overflow: 'hidden', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', position: 'relative' }}>
             {isDone ? (
               <div style={{ width: dims.w, height: dims.h, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 32, textAlign: 'center' }}>
                 <div style={{ fontSize: 56 }}>🥻</div>
@@ -1327,7 +1329,7 @@ export default function CataloguePage() {
           )}
 
           {/* Floating WhatsApp pill — total price included */}
-          {wishlist.length >= 2 && !showWL && !detail && waNum && (
+          {wishlist.length >= 1 && !showWL && !detail && waNum && (
             <div style={{ position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)', zIndex: 40, animation: 'floatIn 0.3s cubic-bezier(0.34,1.56,0.64,1)' }}>
               <button onClick={handleBookCall}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#25D366', border: 'none', borderRadius: 28, padding: '10px 20px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 24px rgba(37,211,102,0.45)' }}>

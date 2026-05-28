@@ -14,13 +14,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Please enter a valid phone number' }, { status: 400 })
   }
 
-  // TODO(M3): This route writes customer PII (name + phone) using the public anon key.
-  // For a write route, prefer a server-only SUPABASE_SERVICE_ROLE_KEY (no NEXT_PUBLIC_ prefix)
-  // so the key never ships to the browser bundle. Needs your confirmation before changing,
-  // as it also requires RLS policy review on catalogue_sessions.
+  // Use the service role key for server-side writes — this key is never exposed to the browser.
+  // Falls back to anon key in local dev if service role is not set.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
   const { data, error } = await supabase
