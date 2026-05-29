@@ -19,8 +19,10 @@ export function OccasionScreen({
   const subtext   = config.catalogue_occasion_subtext    || "We'll show you the most relevant sarees first"
   const browseAll = config.catalogue_occasion_browse_all || 'Browse all sarees'
 
-  // Change 10: hero image — prefer explicit config key, fall back to first occasion photo
-  const heroImage = config.hero_image || occasions[0]?.image_url || null
+  // Hero image: only show when explicitly set in site_config (key = "hero_image").
+  // Removed fallback to occasions[0]?.image_url — that caused the same portrait photo
+  // to appear twice (cropped oddly as a banner AND as the first occasion card).
+  const heroImage = config.hero_image || null
 
   useEffect(() => {
     if (occasionsLoaded && occasions.length === 0) onSelect(null)
@@ -40,8 +42,9 @@ export function OccasionScreen({
 
   if (occasions.length === 0) return null
 
-  const cols  = occasions.length >= 6 ? 3 : 2
-  const maxW  = cols === 3 ? 420 : 360
+  // Grid columns: 1 item → centred single card; 2–5 → 2 cols; 6+ → 3 cols
+  const cols = occasions.length === 1 ? 1 : occasions.length >= 6 ? 3 : 2
+  const maxW = cols === 3 ? 420 : cols === 1 ? 220 : 360
   const items = occasions.slice(0, 8)
 
   return (
