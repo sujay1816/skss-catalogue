@@ -8,6 +8,8 @@ export type SiteConfig = {
   color_accent?: string
   color_background?: string
   color_page_bg?: string
+  // Hero image shown at the top of the occasion / onboarding screen
+  hero_image?: string
 
   // Catalogue UI text — editable from admin site_config
   catalogue_cta_book_call?: string       // e.g. "Book a Call on WhatsApp"

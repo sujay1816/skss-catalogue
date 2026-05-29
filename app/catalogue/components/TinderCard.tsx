@@ -17,7 +17,7 @@ const isNewProduct = (p: CatalogueProduct) => (Date.now() - new Date(p.createdAt
 // FIX-15: CSS variables for brand colours
 export function TinderCard({
   product, stackIndex, isTop, dragProgress,
-  onSwipe, onTap, onDragProgress, cardW, cardH,
+  onSwipe, onTap, onVideoTap, onDragProgress, cardW, cardH,
   flashSale, wasSeen, isFirstCard, isLoved, onToggleSave,
 }: {
   product: CatalogueProduct
@@ -26,6 +26,8 @@ export function TinderCard({
   dragProgress: number
   onSwipe: (dir: 1 | -1) => void
   onTap: () => void
+  /** Called when the ▶ Video badge is tapped — opens detail focused on the drape video */
+  onVideoTap?: () => void
   onDragProgress: (p: number) => void
   cardW: number
   cardH: number
@@ -181,6 +183,38 @@ export function TinderCard({
         <div style={{ position: 'absolute', top: 14, left: 14, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', borderRadius: 20, padding: '3px 10px' }}>
           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.4)', letterSpacing: 1, fontWeight: 600, textTransform: 'uppercase' }}>Seen</span>
         </div>
+      )}
+
+      {/* Change 4: ▶ Video badge — only on the top card when a drape video exists */}
+      {isTop && product.videoUrl && (
+        <button
+          onPointerDown={e => e.stopPropagation()}
+          onClick={e => {
+            e.stopPropagation()
+            if (onVideoTap) onVideoTap()
+            else onTap()
+          }}
+          aria-label="Watch drape video"
+          style={{
+            position: 'absolute',
+            top: wasSeen ? 44 : 14,
+            left: 14,
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: 20, padding: '4px 10px',
+            cursor: 'pointer',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.85)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(0,0,0,0.65)' }}
+        >
+          {/* Play icon */}
+          <svg width="9" height="10" viewBox="0 0 10 12" fill="#fff">
+            <path d="M0 0L10 6L0 12V0Z"/>
+          </svg>
+          <span style={{ fontSize: 10, fontWeight: 600, color: '#fff', letterSpacing: 0.5 }}>Video</span>
+        </button>
       )}
 
       <div style={{ position: 'absolute', top: 14, right: 14, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>

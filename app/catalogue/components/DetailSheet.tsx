@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import type { CatalogueProduct } from '@/types'
 import type { FlashSale } from '../types'
@@ -14,7 +14,7 @@ const priceOf = (p: CatalogueProduct) => p.salePrice ?? p.originalPrice
 // FIX-9:  description clamped to 3 lines with "Show more" toggle
 // FIX-15: all colour references use CSS variables (--gold, --crimson)
 export function DetailSheet({
-  product, isLoved, onClose, onLove, waNum, flashSale, config, onBookCall, allProducts, onSelectSimilar,
+  product, isLoved, onClose, onLove, waNum, flashSale, config, onBookCall, allProducts, onSelectSimilar, autoFocusVideo,
 }: {
   product: CatalogueProduct
   isLoved: boolean
@@ -26,13 +26,26 @@ export function DetailSheet({
   onBookCall: () => void
   allProducts: CatalogueProduct[]
   onSelectSimilar: (p: CatalogueProduct) => void
+  /** When true, the sheet scrolls to the drape video on mount */
+  autoFocusVideo?: boolean
 }) {
   const [activeImg,     setActiveImg]     = useState(0)
-  const [activeVariant, setActiveVariant] = useState<string | null>(null)  // FIX-1
-  const [descExpanded,  setDescExpanded]  = useState(false)                // FIX-9
+  const [activeVariant, setActiveVariant] = useState<string | null>(null)
+  const [descExpanded,  setDescExpanded]  = useState(false)
   const sheetRef   = useRef<HTMLDivElement>(null)
   const sheetSwipe = useRef({ on: false, y0: 0 })
   const imgSwipe   = useRef({ on: false, x0: 0 })
+  // Change 4: ref to the video section so we can scroll it into view
+  const videoRef   = useRef<HTMLDivElement>(null)
+
+  // Change 4: scroll the video into view after the sheet animation completes
+  useEffect(() => {
+    if (!autoFocusVideo || !videoRef.current) return
+    const t = setTimeout(() => {
+      videoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 420) // wait for the sheet slide-up animation
+    return () => clearTimeout(t)
+  }, [autoFocusVideo])
 
   const ctaBookCall = config.catalogue_cta_book_call || 'Book a Call on WhatsApp'
 
@@ -154,7 +167,7 @@ export function DetailSheet({
 
           {/* Video */}
           {product.videoUrl && (
-            <div style={{ padding: '12px 16px 0' }}>
+            <div ref={videoRef} style={{ padding: '12px 16px 0' }}>
               <div style={{ borderRadius: 12, overflow: 'hidden', background: '#000', aspectRatio: '16/9' }}>
                 <video src={product.videoUrl} controls playsInline preload="metadata" title="Drape video" aria-label={`${product.name} drape video`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}/>
               </div>

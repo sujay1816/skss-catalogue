@@ -11,6 +11,10 @@ import { TinderCard }        from './components/TinderCard'
 import { DetailSheet }       from './components/DetailSheet'
 import { WishlistScreen }    from './components/WishlistScreen'
 import { PhoneCaptureSheet } from './components/PhoneCaptureSheet'
+// Change 2: soft lead capture after 4th shortlist
+import { SoftCaptureSheet, hasSoftCaptured } from './components/SoftCaptureSheet'
+// Change 3: funnel analytics
+import { track } from '@/lib/analytics'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const UNDO_MS = 3500
@@ -41,13 +45,12 @@ function getDeviceId(): string {
   } catch { return 'unknown' }
 }
 
-// FIX-7: timestamp-based onboard check (30-day expiry)
+// Change 8: only show onboarding if there is no prior visit at all.
+// Returning customers (any timestamp age) land straight in the catalogue.
+// Occasion filter expiry is handled separately in the localStorage load effect.
 function shouldShowOnboard(): boolean {
   try {
-    const ts = localStorage.getItem('skss_onboarded_at')
-    if (!ts) return true
-    const age = Date.now() - parseInt(ts, 10)
-    return age > ONBOARD_EXPIRY_DAYS * 86400000
+    return !localStorage.getItem('skss_onboarded_at')
   } catch { return true }
 }
 
@@ -140,9 +143,13 @@ export default function CataloguePage() {
   const filteredProductsRef = useRef<CatalogueProduct[]>([]) // BUG-3 FIX: always-current filtered list for rerankDeck
   const wishlistMountedRef = useRef(false) // guard: skip sync on initial localStorage hydration
   // BUG-7 FIX: keep a ref so handleCaptureSubmit can read the current wishlist
-  // without including it in its useCallback deps. This prevents PhoneCaptureSheet
-  // from re-rendering every time the wishlist changes while the sheet is open.
+  // without including it in its useCallback deps.
   const wishlistRef = useRef<WishlistItem[]>([])
+  // Change 2: prevents soft-capture sheet from showing more than once per session
+  const softCaptureFiredRef  = useRef(false)
+  // Change 3: analytics — each fires at most once per session
+  const firstSwipeRightRef   = useRef(false)
+  const wishlist3TrackedRef  = useRef(false)
 
   // FIX-4: affinity weights updated on each right-swipe.
   // BUG-4 FIX: minPrice was Infinity; initialised to 0 so isFinite() always
@@ -169,6 +176,10 @@ export default function CataloguePage() {
   const [undoRm,         setUndoRm]         = useState<{ it: WishlistItem; t: ReturnType<typeof setTimeout> } | null>(null)
   const [dragProg,       setDragProg]       = useState(0)
   const [showCapture,    setShowCapture]    = useState(false)
+  // Change 2: soft (non-blocking) capture sheet after 4th shortlist item
+  const [showSoftCapture, setShowSoftCapture] = useState(false)
+  // Change 4: flag that tells DetailSheet to scroll to the drape video on open
+  const [detailAutoFocusVideo, setDetailAutoFocusVideo] = useState(false)
   const [savedToast,     setSavedToast]     = useState('')
   const [errorToast,     setErrorToast]     = useState('')
   const [sharedToast,    setSharedToast]    = useState('')
@@ -308,7 +319,19 @@ export default function CataloguePage() {
 
   useEffect(() => {
     try { const s = localStorage.getItem('skss_wl'); if (s) setWishlist(JSON.parse(s)) } catch {}
-    try { const occ = localStorage.getItem('skss_occasion'); if (occ) setOccasionFilter(occ) } catch {}
+    try {
+      const occ = localStorage.getItem('skss_occasion')
+      if (occ) {
+        // Change 8: clear an expired occasion filter without re-showing onboarding
+        const ts = localStorage.getItem('skss_onboarded_at')
+        const occasionExpired = ts && (Date.now() - parseInt(ts, 10)) > ONBOARD_EXPIRY_DAYS * 86400000
+        if (!occasionExpired) {
+          setOccasionFilter(occ)
+        } else {
+          try { localStorage.removeItem('skss_occasion') } catch {}
+        }
+      }
+    } catch {}
     const params = new URLSearchParams(window.location.search)
     const saved  = params.get('saved')
     if (saved) pendingSavedRef.current = saved.split(',')
@@ -335,6 +358,32 @@ export default function CataloguePage() {
     try { localStorage.setItem('skss_wl', JSON.stringify(wishlist)) } catch {}
     wishlistRef.current = wishlist  // BUG-7 FIX: keep ref in sync
   }, [wishlist])
+
+  // Change 3: fire wishlist_3_reached once per session
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!wishlist3TrackedRef.current && wishlist.length >= 3) {
+      wishlist3TrackedRef.current = true
+      track('wishlist_3_reached')
+    }
+  }, [wishlist.length])
+
+  // Change 2: show soft capture after 4th item, once per session/localStorage
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (
+      wishlist.length >= 4 &&
+      !softCaptureFiredRef.current &&
+      !showCapture &&
+      !showWL &&
+      !detail &&
+      !hasSoftCaptured()
+    ) {
+      softCaptureFiredRef.current = true
+      setShowSoftCapture(true)
+      track('soft_capture_shown')
+    }
+  }, [wishlist.length, showCapture, showWL, detail])
 
   useEffect(() => {
     // Skip the first run — that's the localStorage hydration, not a real change
@@ -408,6 +457,11 @@ export default function CataloguePage() {
 
       // FIX-10: double-pulse haptic for save
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate([10, 50, 10])
+      // Change 3: fire first_swipe_right once per session
+      if (!firstSwipeRightRef.current) {
+        firstSwipeRightRef.current = true
+        track('first_swipe_right')
+      }
     } else {
       // FIX-10: single pulse for skip
       if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10)
@@ -447,6 +501,7 @@ export default function CataloguePage() {
       errorToastTimerRef.current = setTimeout(() => setErrorToast(''), 3000)
       return
     }
+    track('book_call_clicked')
     setShowCapture(true)
   }, [wishlist, waNum])
 
@@ -464,10 +519,8 @@ export default function CataloguePage() {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, phone: storedPhone, wishlist: currentWishlist, device_id: getDeviceId(), occasion: occasionFilter ?? null, preferred_slot: slot ?? null }),
     }).catch(() => {})
+    track('book_call_submitted')
     const waUrl = buildWA(currentWishlist, waNum, name, occasionFilter, config.catalogue_wa_message_template, slot)
-    // window.open is called synchronously inside a user-gesture handler so
-    // popup blockers should not fire. If it does return null (blocked), fall
-    // back to a same-tab redirect so the WhatsApp link always reaches the user.
     const win = window.open(waUrl, '_blank', 'noopener,noreferrer')
     if (!win) window.location.href = waUrl
   }, [waNum, occasionFilter, config.catalogue_wa_message_template])
@@ -524,6 +577,8 @@ export default function CataloguePage() {
 
   // FIX-7: timestamp-based onboard save
   const handleOccasionSelect = useCallback((slug: string | null) => {
+    // Change 3: track which occasion (or "browsing") the user chose
+    track('occasion_selected', { occasion: slug ?? 'browsing' })
     if (slug) {
       const matchingOcc = occasions.find(o => o.slug === slug)
       if (matchingOcc) {
@@ -553,6 +608,22 @@ export default function CataloguePage() {
     const p = allProducts.find(x => x.id === id)
     if (p) { setShowWL(false); setTimeout(() => setDetail(p), 50) }
   }, [allProducts])
+
+  // Change 2: soft capture submit — POST the lead, no WhatsApp redirect
+  const handleSoftCaptureSubmit = useCallback((phone: string) => {
+    const digits = phone.replace(/\D/g, '')
+    const storedPhone = digits.startsWith('91') ? digits : `91${digits}`
+    fetch('/api/catalogue-session', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: storedPhone,
+        wishlist: wishlistRef.current,
+        device_id: getDeviceId(),
+        preferred_slot: null,
+      }),
+    }).catch(() => {})
+    setShowSoftCapture(false)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -732,6 +803,7 @@ export default function CataloguePage() {
                   <TinderCard
                     key={p.id} product={p} stackIndex={si} isTop={si === 0}
                     dragProgress={dragProg} onSwipe={swipe} onTap={() => setDetail(p)}
+                    onVideoTap={p.videoUrl && si === 0 ? () => { setDetailAutoFocusVideo(true); setDetail(p) } : undefined}
                     onDragProgress={si === 0 ? setDragProg : () => {}}
                     cardW={dims.w} cardH={dims.h} flashSale={flashSale}
                     wasSeen={seenIds.has(p.id)} isFirstCard={idx === 0 && si === 0}
@@ -832,8 +904,16 @@ export default function CataloguePage() {
       </div>
 
       {showCapture && <PhoneCaptureSheet wishlist={wishlist} config={config} onClose={() => setShowCapture(false)} onSubmit={handleCaptureSubmit}/>}
-      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => setDetail(null)} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} config={config} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => setDetail(p)}/>}
+      {detail && <DetailSheet product={detail} isLoved={loved(detail.id)} onClose={() => { setDetail(null); setDetailAutoFocusVideo(false) }} onLove={() => loved(detail.id) ? remove(detail.id) : save(detail)} waNum={waNum} flashSale={flashSale} config={config} onBookCall={handleBookCall} allProducts={allProducts} onSelectSimilar={p => { setDetailAutoFocusVideo(false); setDetail(p) }} autoFocusVideo={detailAutoFocusVideo}/>}
       {showWL && <WishlistScreen items={wishlist} config={config} onClose={() => setShowWL(false)} onRemove={remove} onCall={handleBookCall} waNum={waNum} onOpenDetail={openDetailById} undoRm={undoRm} onUndoRm={() => { if (undoRm) { clearTimeout(undoRm.t); setWishlist(prev => prev.find(x => x.id === undoRm.it.id) ? prev : [...prev, undoRm.it]); setUndoRm(null) } }}/>}
+      {/* Change 2: soft capture — only shown when no other sheet is open */}
+      {showSoftCapture && !showCapture && !detail && !showWL && (
+        <SoftCaptureSheet
+          wishlist={wishlist}
+          onSubmit={handleSoftCaptureSubmit}
+          onDismiss={() => setShowSoftCapture(false)}
+        />
+      )}
     </>
   )
 }

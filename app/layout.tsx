@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Cormorant_Garamond, DM_Sans } from 'next/font/google'
 import { createClient } from '@supabase/supabase-js'
+import Script from 'next/script'
 import './globals.css'
 
 const cormorant = Cormorant_Garamond({
@@ -74,9 +75,21 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN
   return (
     <html lang="en" className={`${cormorant.variable} ${dmSans.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Change 3: Plausible analytics — add NEXT_PUBLIC_PLAUSIBLE_DOMAIN to .env.local to activate */}
+        {plausibleDomain && (
+          <Script
+            defer
+            data-domain={plausibleDomain}
+            src="https://plausible.io/js/plausible.js"
+            strategy="afterInteractive"
+          />
+        )}
+      </body>
     </html>
   )
 }
