@@ -26,6 +26,8 @@ const PUBLIC_KEYS = [
   'catalogue_wa_message_template',
   'catalogue_meta_title',
   'catalogue_meta_description',
+  // Item 2: authenticity line shown in DetailSheet (shop-configurable copy, not hardcoded)
+  'catalogue_authenticity_line',
 ]
 
 // Prevent Next.js prerendering this route at build time — Supabase env vars

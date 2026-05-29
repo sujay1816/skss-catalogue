@@ -23,6 +23,7 @@ export type AnalyticsEvent =
   | 'soft_capture_submitted'
   | 'book_call_clicked'
   | 'book_call_submitted'
+  | 'shortlist_shared_viewed'
 
 export function track(
   event: AnalyticsEvent,

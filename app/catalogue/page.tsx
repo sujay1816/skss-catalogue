@@ -183,6 +183,8 @@ export default function CataloguePage() {
   const [savedToast,     setSavedToast]     = useState('')
   const [errorToast,     setErrorToast]     = useState('')
   const [sharedToast,    setSharedToast]    = useState('')
+  // Item 4: persistent banner shown when landing via ?saved= link (separate from the transient sharedToast)
+  const [sharedBanner,   setSharedBanner]   = useState<{ count: number } | null>(null)
   const [undoHintShown,  setUndoHintShown]  = useState(false)
   const [undoHintActive, setUndoHintActive] = useState(false)
   const [showBtnLabels,  setShowBtnLabels]  = useState(true)
@@ -349,6 +351,10 @@ export default function CataloguePage() {
       setSharedToast(`${matching.length} saree${matching.length !== 1 ? 's' : ''} shared with you`)
       if (sharedToastTimerRef.current) clearTimeout(sharedToastTimerRef.current)
       sharedToastTimerRef.current = setTimeout(() => setSharedToast(''), 3500)
+      // Item 4: persistent banner so the recipient always knows this is shared content
+      setSharedBanner({ count: matching.length })
+      // Item 4: analytics — fire once when a ?saved= link is resolved
+      track('shortlist_shared_viewed', { count: matching.length })
     }
     pendingSavedRef.current = null
     try { window.history.replaceState({}, '', '/catalogue') } catch {}
@@ -719,12 +725,48 @@ export default function CataloguePage() {
               )}
             </div>
 
-            <button onClick={() => setShowWL(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 24, padding: '8px 16px 8px 12px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            <button onClick={() => { setShowWL(true); setSharedBanner(null) }} style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 24, padding: '8px 16px 8px 12px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill={wishlist.length > 0 ? '#F87171' : 'none'} stroke={wishlist.length > 0 ? '#F87171' : 'rgba(255,255,255,0.7)'} strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
               Saved
               {wishlist.length > 0 && <span style={{ background: 'var(--crimson, #8B1A2B)', color: '#fff', borderRadius: '50%', minWidth: 20, height: 20, fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>{wishlist.length}</span>}
             </button>
           </div>
+
+          {/* Item 4: persistent banner shown when landing via a ?saved= shared-shortlist link.
+               Persists until the user opens their wishlist or taps ×. */}
+          {sharedBanner && (
+            <div style={{
+              flexShrink: 0, margin: '0 16px 8px',
+              background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)',
+              borderRadius: 12, padding: '8px 12px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gold, #C9A84C)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                  <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                </svg>
+                <p style={{ fontSize: 12, color: 'var(--gold, #C9A84C)', fontWeight: 500, lineHeight: 1.3 }}>
+                  Someone shared a shortlist with you · {sharedBanner.count} saree{sharedBanner.count !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                <button
+                  onClick={() => { setShowWL(true); setSharedBanner(null) }}
+                  style={{ background: 'rgba(201,168,76,0.18)', border: '1px solid rgba(201,168,76,0.4)', borderRadius: 8, padding: '4px 10px', color: 'var(--gold, #C9A84C)', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                >
+                  View
+                </button>
+                <button
+                  onClick={() => setSharedBanner(null)}
+                  aria-label="Dismiss"
+                  style={{ background: 'none', border: 'none', color: 'rgba(201,168,76,0.5)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Flash sale banner */}
           {flashSale && !isDone && (

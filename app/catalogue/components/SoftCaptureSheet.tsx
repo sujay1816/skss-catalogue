@@ -166,6 +166,11 @@ export function SoftCaptureSheet({
           <p style={{ fontSize: 12, color: '#f87171', marginTop: 8 }}>{error}</p>
         )}
 
+        {/* Item 3: privacy reassurance near the phone field */}
+        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 10, lineHeight: 1.5, textAlign: 'center' }}>
+          We&apos;ll only message you about your shortlist. No spam, no sharing your number.
+        </p>
+
         <button
           onClick={handleDismiss}
           style={{

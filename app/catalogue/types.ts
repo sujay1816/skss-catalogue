@@ -27,6 +27,11 @@ export type SiteConfig = {
   catalogue_wa_message_template?: string    // e.g. "{greeting}{occLine}\n\nI browsed your saree catalogue and shortlisted:\n\n{list}\n\nTotal: {total}\n\nCan we schedule a video call to see these in detail?"
   catalogue_meta_title?: string             // e.g. "Swipe & Discover"
   catalogue_meta_description?: string       // e.g. "Browse our handpicked saree collection. Swipe to save your favourites, then book a personal video call."
+  // Item 2: authenticity / about-this-saree strip shown in DetailSheet above the variant selector.
+  // Set this key in your Supabase site_config table to show a single line of trust copy, e.g.:
+  //   "100% pure silk · genuine zari · pre-washed and colour-fast"
+  // The shop is responsible for the accuracy of any claims made here.
+  catalogue_authenticity_line?: string
 }
 
 export type Occasion = { id: string; name: string; slug: string; image_url: string }

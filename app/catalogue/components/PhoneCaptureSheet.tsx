@@ -166,6 +166,11 @@ export function PhoneCaptureSheet({
                 />
               </div>
             </div>
+            {/* Item 3: privacy reassurance near the phone field — keeps trust high at the
+                exact moment the user decides whether to type their number */}
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 6, marginBottom: 14, lineHeight: 1.4 }}>
+              We&apos;ll only use this to contact you about your shortlist. No spam, no sharing.
+            </p>
 
             {/* ── Change 9: Name — pre-filled, secondary, smaller ── */}
             <div style={{ marginBottom: 16 }}>

@@ -245,6 +245,35 @@ export function DetailSheet({
               )
             })()}
 
+            {/* ── Item 2: Authenticity / About this saree strip ─────────────────────
+                Priority: config.catalogue_authenticity_line (set in Supabase site_config).
+                Fallback: factual product fields already in the DB (fabric + weave).
+                TODO (shop): to show claims like "100% pure silk · genuine zari · pre-washed",
+                add a row to your Supabase site_config table:
+                  key = "catalogue_authenticity_line"
+                  value = "100% pure silk · genuine zari · pre-washed and colour-fast"
+                Only use this for claims you can genuinely stand behind. ──────────────── */}
+            {(() => {
+              const authLine = config.catalogue_authenticity_line ||
+                [product.fabric, product.weaveType].filter(Boolean).join(' · ')
+              if (!authLine) return null
+              return (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: 'rgba(201,168,76,0.06)',
+                  border: '1px solid rgba(201,168,76,0.18)',
+                  borderRadius: 10, padding: '8px 12px', marginBottom: 18,
+                }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(201,168,76,0.7)" strokeWidth="2" style={{ flexShrink: 0 }}>
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                  <span style={{ fontSize: 12, color: 'rgba(201,168,76,0.75)', lineHeight: 1.4 }}>
+                    {authLine}
+                  </span>
+                </div>
+              )
+            })()}
+
             {/* FIX-1: variant chips — tappable, updates main image, gold border when active */}
             {sortedVars.length > 0 && (
               <div style={{ marginBottom: 22 }}>
